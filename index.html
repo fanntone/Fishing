@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>清流釣り ・ 河口釣魚</title>
+<style>
+  :root{
+    --paper:#f7f4ec; --ink:#3c4043; --ink-soft:#6b7177;
+    --panel:rgba(255,255,255,0.82); --line:rgba(60,64,67,0.12);
+    --accent:#5fb0c9; --accent-deep:#3d8aa3; --gold:#e0a93b;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; overflow:hidden;
+    font-family:"Hiragino Sans","Yu Gothic UI","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+    color:var(--ink); background:#cfe8f2; -webkit-font-smoothing:antialiased; }
+  #scene{ position:fixed; inset:0; display:block; }
+  .hud{ position:fixed; z-index:10; }
+
+  /* 頂部資訊列 */
+  #topbar{ top:16px; left:50%; transform:translateX(-50%); display:flex; gap:10px; }
+  .chip{ background:var(--panel); backdrop-filter:blur(8px); border:1px solid var(--line);
+    border-radius:999px; padding:8px 18px; font-size:14px; letter-spacing:.5px;
+    box-shadow:0 4px 18px rgba(60,90,110,.10); display:flex; align-items:center; gap:8px; }
+  .chip b{ font-weight:700; }
+  .chip .ic{ font-size:16px; }
+
+  /* 中央提示 */
+  #hint{ bottom:46px; left:50%; transform:translateX(-50%); text-align:center;
+    background:var(--panel); backdrop-filter:blur(8px); border:1px solid var(--line);
+    border-radius:16px; padding:12px 26px; font-size:16px; letter-spacing:1px;
+    box-shadow:0 6px 22px rgba(60,90,110,.12); transition:opacity .3s; }
+  #hint small{ display:block; color:var(--ink-soft); font-size:12px; margin-top:3px; letter-spacing:.5px; }
+
+  /* 起竿時機條 */
+  #timing{ bottom:120px; left:50%; transform:translateX(-50%); width:min(420px,80vw);
+    display:none; text-align:center; }
+  #timing.show{ display:block; animation:pop .25s ease; }
+  @keyframes pop{ from{ transform:translateX(-50%) scale(.9); opacity:0;} to{ transform:translateX(-50%) scale(1); opacity:1;} }
+  #timing .label{ font-size:20px; font-weight:700; color:#e8553e; letter-spacing:3px;
+    text-shadow:0 2px 10px rgba(255,255,255,.8); margin-bottom:10px;
+    animation:throb .5s ease-in-out infinite alternate; }
+  @keyframes throb{ to{ transform:scale(1.06);} }
+  #track{ position:relative; height:26px; border-radius:13px; background:rgba(255,255,255,.7);
+    border:1px solid var(--line); box-shadow:inset 0 2px 6px rgba(0,0,0,.06); overflow:hidden; }
+  #zone{ position:absolute; top:0; bottom:0; background:linear-gradient(180deg,#9fe6a0,#5fc771);
+    box-shadow:0 0 12px rgba(95,199,113,.6); }
+  #zonePerfect{ position:absolute; top:0; bottom:0; background:linear-gradient(180deg,#ffe27a,#ffb02e); }
+  #marker{ position:absolute; top:-4px; width:6px; height:34px; border-radius:3px;
+    background:#3c4043; box-shadow:0 0 0 2px rgba(255,255,255,.85),0 2px 8px rgba(0,0,0,.3); left:0; }
+  #timing .tip{ margin-top:8px; font-size:12px; color:var(--ink-soft); letter-spacing:1px; }
+
+  /* 漁獲結果卡 */
+  #result{ inset:0; display:none; align-items:center; justify-content:center;
+    background:rgba(30,50,60,.28); backdrop-filter:blur(3px); z-index:30; }
+  #result.show{ display:flex; }
+  .card{ width:min(540px,92vw); background:var(--paper); border-radius:24px; overflow:hidden;
+    box-shadow:0 24px 70px rgba(20,40,55,.35); border:1px solid rgba(255,255,255,.7);
+    animation:rise .35s cubic-bezier(.2,.9,.3,1.2); }
+  @keyframes rise{ from{ transform:translateY(24px) scale(.96); opacity:0;} to{ transform:none; opacity:1;} }
+  .card .head{ padding:18px 24px 12px; text-align:center; position:relative; }
+  .card .grade{ font-size:13px; letter-spacing:4px; color:var(--ink-soft); }
+  .card .gradeBig{ font-size:26px; font-weight:800; letter-spacing:6px; margin-top:2px; }
+  .card .body{ display:flex; gap:18px; padding:6px 24px 20px; align-items:stretch; }
+  #previewWrap{ width:188px; flex:0 0 188px; border-radius:18px;
+    background:radial-gradient(120% 120% at 50% 30%,#eaf6f9,#d6ebef);
+    border:1px solid var(--line); display:flex; align-items:center; justify-content:center; }
+  #previewCanvas{ width:188px; height:188px; }
+  .info{ flex:1; min-width:0; }
+  .info .name{ font-size:24px; font-weight:800; letter-spacing:1px; }
+  .info .ja{ font-size:13px; color:var(--ink-soft); margin-top:2px; letter-spacing:1px; }
+  .badge{ display:inline-block; padding:3px 12px; border-radius:999px; color:#fff;
+    font-size:12px; font-weight:700; letter-spacing:2px; margin-top:8px; }
+  .stats{ display:grid; grid-template-columns:1fr 1fr; gap:8px 14px; margin-top:14px; }
+  .stat{ background:rgba(255,255,255,.6); border:1px solid var(--line); border-radius:12px; padding:8px 12px; }
+  .stat .k{ font-size:11px; color:var(--ink-soft); letter-spacing:1px; }
+  .stat .v{ font-size:17px; font-weight:700; }
+  .stat .v.gold{ color:var(--gold); }
+  .desc{ margin:16px 24px 6px; padding:14px 16px; background:rgba(255,255,255,.55);
+    border:1px solid var(--line); border-radius:14px; font-size:13.5px; line-height:1.85;
+    color:#4a5358; letter-spacing:.5px; }
+  .card .foot{ padding:6px 24px 22px; display:flex; gap:12px; }
+  .btn{ flex:1; border:none; cursor:pointer; padding:14px; border-radius:14px; font-size:15px;
+    font-weight:700; letter-spacing:2px; transition:transform .1s, box-shadow .2s;
+    font-family:inherit; }
+  .btn:active{ transform:translateY(1px) scale(.99); }
+  .btn.primary{ background:linear-gradient(180deg,#6fc0d6,#4d98b0); color:#fff;
+    box-shadow:0 8px 20px rgba(77,152,176,.4); }
+  .btn.ghost{ background:rgba(255,255,255,.7); color:var(--ink); border:1px solid var(--line); }
+
+  /* 浮動工具按鈕 */
+  #tools{ top:16px; right:16px; display:flex; flex-direction:column; gap:10px; }
+  .toolbtn{ width:46px; height:46px; border-radius:14px; border:1px solid var(--line);
+    background:var(--panel); backdrop-filter:blur(8px); cursor:pointer; font-size:20px;
+    box-shadow:0 4px 16px rgba(60,90,110,.12); transition:transform .12s;
+    display:flex; align-items:center; justify-content:center; }
+  .toolbtn:hover{ transform:translateY(-2px); }
+
+  /* 圖鑑 */
+  #book{ inset:0; display:none; align-items:center; justify-content:center;
+    background:rgba(30,50,60,.3); backdrop-filter:blur(4px); z-index:35; }
+  #book.show{ display:flex; }
+  .bookwrap{ width:min(960px,94vw); height:min(80vh,720px); background:var(--paper);
+    border-radius:24px; box-shadow:0 24px 70px rgba(20,40,55,.4); display:flex; flex-direction:column; overflow:hidden; }
+  .bookhead{ padding:18px 24px; border-bottom:1px solid var(--line); display:flex;
+    align-items:center; justify-content:space-between; }
+  .bookhead h2{ margin:0; font-size:20px; letter-spacing:3px; }
+  .bookhead .sub{ font-size:13px; color:var(--ink-soft); }
+  .bookbody{ flex:1; display:flex; min-height:0; }
+  #bookGrid{ flex:1; overflow-y:auto; padding:16px; display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; align-content:start; }
+  .fishcell{ background:rgba(255,255,255,.6); border:1px solid var(--line); border-radius:14px;
+    padding:12px; cursor:pointer; transition:transform .1s, box-shadow .2s; position:relative; }
+  .fishcell:hover{ transform:translateY(-2px); box-shadow:0 8px 18px rgba(60,90,110,.16); }
+  .fishcell .dot{ width:10px; height:10px; border-radius:50%; position:absolute; top:12px; right:12px; }
+  .fishcell .cn{ font-size:15px; font-weight:700; }
+  .fishcell .cj{ font-size:11px; color:var(--ink-soft); margin-top:2px; }
+  .fishcell .cv{ font-size:12px; color:var(--gold); margin-top:8px; font-weight:700; }
+  .fishcell.locked{ color:#aab2b6; }
+  .fishcell.locked .cn{ color:#aab2b6; }
+  .bookside{ width:300px; flex:0 0 300px; border-left:1px solid var(--line); padding:18px;
+    overflow-y:auto; background:rgba(255,255,255,.4); }
+  .bookside .ph{ color:var(--ink-soft); font-size:13px; text-align:center; margin-top:40px; line-height:2; }
+
+  /* 開場 */
+  #intro{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:50;
+    background:linear-gradient(160deg,#bfe3ee,#e7f4ee); }
+  #intro.hide{ opacity:0; pointer-events:none; transition:opacity .6s; }
+  .introcard{ text-align:center; }
+  .introcard h1{ font-size:40px; letter-spacing:8px; margin:0; font-weight:800; color:#3a5560; }
+  .introcard .en{ letter-spacing:6px; color:#6b8a93; margin:6px 0 26px; font-size:14px; }
+  .introcard .startbtn{ background:linear-gradient(180deg,#6fc0d6,#4d98b0); color:#fff; border:none;
+    padding:16px 48px; border-radius:16px; font-size:18px; letter-spacing:4px; font-weight:700;
+    cursor:pointer; box-shadow:0 12px 30px rgba(77,152,176,.4); font-family:inherit; }
+  .introcard .startbtn:active{ transform:translateY(1px); }
+  .introcard .keys{ margin-top:22px; color:#6b8a93; font-size:13px; letter-spacing:1px; line-height:2; }
+  #loading{ position:fixed; bottom:30px; left:50%; transform:translateX(-50%); color:#5a7a83; font-size:13px; }
+
+  .toast{ position:fixed; bottom:120px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:rgba(60,64,67,.92); color:#fff; padding:12px 26px; border-radius:14px; font-size:15px;
+    letter-spacing:2px; opacity:0; transition:.3s; z-index:25; pointer-events:none; }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+
+  <div id="topbar" class="hud">
+    <div class="chip"><span class="ic">🪙</span><b id="coins">0</b> 円</div>
+    <div class="chip"><span class="ic">🐟</span>圖鑑 <b id="dexcount">0</b>/<span id="dextotal">0</span></div>
+    <div class="chip"><span class="ic">🎣</span>釣獲 <b id="catchcount">0</b></div>
+  </div>
+
+  <div id="tools" class="hud">
+    <button class="toolbtn" id="btnBook" title="圖鑑">📖</button>
+    <button class="toolbtn" id="btnMute" title="音效">🔊</button>
+  </div>
+
+  <div id="hint" class="hud">點擊畫面或按 <b>空白鍵</b> 拋竿<small>面向這片風光明媚的合流，靜待魚訊</small></div>
+
+  <div id="timing" class="hud">
+    <div class="label">起 竿 ！</div>
+    <div id="track">
+      <div id="zone"></div>
+      <div id="zonePerfect"></div>
+      <div id="marker"></div>
+    </div>
+    <div class="tip">指標進入綠區時按 空白鍵／點擊 起竿，黃心為完美</div>
+  </div>
+
+  <div id="result" class="hud">
+    <div class="card">
+      <div class="head">
+        <div class="grade">釣 獲</div>
+        <div class="gradeBig" id="gradeBig">成功</div>
+      </div>
+      <div class="body">
+        <div id="previewWrap"><canvas id="previewCanvas" width="376" height="376"></canvas></div>
+        <div class="info">
+          <div class="name" id="rName">—</div>
+          <div class="ja" id="rJa">—</div>
+          <span class="badge" id="rBadge">—</span>
+          <div class="stats">
+            <div class="stat"><div class="k">體長</div><div class="v" id="rLen">—</div></div>
+            <div class="stat"><div class="k">重量</div><div class="v" id="rWt">—</div></div>
+            <div class="stat"><div class="k">稀有度</div><div class="v" id="rRare">—</div></div>
+            <div class="stat"><div class="k">價值</div><div class="v gold" id="rVal">—</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="desc" id="rDesc">—</div>
+      <div class="foot">
+        <button class="btn ghost" id="btnRelease">放生</button>
+        <button class="btn primary" id="btnKeep">收藏並繼續</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="book" class="hud">
+    <div class="bookwrap">
+      <div class="bookhead">
+        <div><h2>魚 類 圖 鑑</h2><div class="sub" id="bookSub">已收集 0 種</div></div>
+        <button class="toolbtn" id="btnBookClose">✕</button>
+      </div>
+      <div class="bookbody">
+        <div id="bookGrid"></div>
+        <div class="bookside" id="bookSide"><div class="ph">點選左側魚種<br/>查看詳細資料</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="intro">
+    <div class="introcard">
+      <h1>清 流 釣 り</h1>
+      <div class="en">RIVER CONFLUENCE FISHING</div>
+      <button class="startbtn" id="btnStart">開 始 釣 魚</button>
+      <div class="keys">空白鍵／點擊 = 拋竿・起竿　│　滑鼠移動 = 環顧四周<br/>魚兒咬鉤時，抓準時機條的綠色區段起竿</div>
+    </div>
+  </div>
+  <div id="loading">載入中…</div>
+  <div id="toast" class="toast"></div>
+
+<script>
+// 畫面內錯誤提示：即使模組載入失敗也能看到原因
+window.addEventListener('error',e=>{
+  // 只忽略瀏覽器擴充套件（錢包等）注入腳本的錯誤
+  if(e.filename && /extension:\/\/|evmAsk|inpage|contentScript/i.test(e.filename)) return;
+  showErr((e.message||'Error')+(e.filename?(' @ '+e.filename.split('/').pop()+':'+e.lineno):''));
+});
+window.addEventListener('unhandledrejection',e=>showErr('Promise: '+((e.reason&&e.reason.message)||e.reason)));
+function showErr(msg){
+  let d=document.getElementById('errbox');
+  if(!d){ d=document.createElement('div'); d.id='errbox';
+    d.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:99999;background:#b3261e;color:#fff;font:13px/1.6 ui-monospace,monospace;padding:10px 14px;white-space:pre-wrap;max-height:45vh;overflow:auto';
+    (document.body||document.documentElement).appendChild(d); }
+  d.textContent+='⚠ '+msg+'\n';
+}
+</script>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+
+<script type="module">
+const boot=document.getElementById('loading');
+const setBoot=t=>{ if(boot){ boot.style.display='block'; boot.textContent=t; } };
+
+let THREE;
+try{
+  setBoot('正在載入 three.js…');
+  THREE = await import('three');
+  setBoot('three.js 已載入，建立場景中…');
+}catch(err){
+  setBoot('three.js 載入失敗');
+  showErr('three.js 載入失敗（CDN 被擋或無網路？）：'+((err&&err.message)||err));
+  throw err;
+}
+
+/* =========================================================================
+   1. 魚類資料：40 個真實魚種家族 × 5 種變異 = 200+ 種
+   ========================================================================= */
+const RARITY = [
+  { key:'common',   label:'常見', color:'#9aa7b0', weight:100, mul:1   },
+  { key:'uncommon', label:'普通', color:'#5fb55f', weight:52,  mul:2.2 },
+  { key:'rare',     label:'稀有', color:'#4aa3ff', weight:20,  mul:5   },
+  { key:'epic',     label:'史詩', color:'#b061ff', weight:6,   mul:14  },
+  { key:'legend',   label:'傳說', color:'#f0a92e', weight:1.6, mul:42  },
+];
+
+// shape: 體型參數  len=長, maxR=最大半徑, fat=胖瘦指數, width=側扁(z), tail=尾鰭大小
+const SHAPES = {
+  normal: { len:2.0, maxR:0.42, fat:1.0, width:0.46, tail:0.55, dorsal:true },
+  slim:   { len:2.3, maxR:0.30, fat:1.2, width:0.42, tail:0.5,  dorsal:true },
+  eel:    { len:3.4, maxR:0.16, fat:1.4, width:0.7,  tail:0.22, dorsal:false },
+  flat:   { len:1.7, maxR:0.52, fat:0.8, width:1.05, tail:0.4,  dorsal:false, flatY:0.32 },
+  round:  { len:1.35,maxR:0.62, fat:0.7, width:0.8,  tail:0.32, dorsal:false },
+  deep:   { len:1.75,maxR:0.55, fat:0.9, width:0.40, tail:0.5,  dorsal:true },
+};
+
+// 40 個家族 [中文, 日文(假名), 稀有度idx, 體長min, max(cm), 基準值, body色, 腹/鰭色, 鰭色, shape, 棲地, 食性, 季節, 趣聞]
+const FAMILIES = [
+  ['鯉魚','コイ',0,20,80,120,'#7d8a4e','#c9cf9a','#6b7440','normal','緩流深潭與湖沼','水草、底棲昆蟲與螺貝','四季皆可，春秋最盛','自古即為觀賞與食用魚，壽命可逾數十年'],
+  ['鯽魚','フナ',0,8,30,55,'#8a8b62','#d6d3a8','#74765a','deep','水草茂密的靜水域','藻類與浮游動物','全年，冬季群聚','耐污力強，是溪釣最普遍的入門魚'],
+  ['草魚','ソウギョ',0,30,90,170,'#7f9a6a','#cfe0b0','#6a8255','normal','水草豐茂的大河與池塘','水生植物與嫩葉','春末至秋','以食草著稱，常被用於水域除草'],
+  ['鰱魚','ハクレン',0,30,80,150,'#b8c0c6','#eef2f4','#9aa3aa','normal','開闊水面的中上層','濾食浮游植物','夏季活躍','受驚時會躍出水面，場面壯觀'],
+  ['鯰魚','ナマズ',1,25,70,220,'#566053','#9aa190','#454d44','eel','泥底深潭與堰下','小魚、蝦與蛙','夜間與雨後','長鬚靈敏，是有名的夜行掠食者'],
+  ['鰻魚','ウナギ',2,40,90,620,'#3f4a44','#cfb98a','#2f3833','eel','河海洄游的泥底','蝦蟹與小魚','夏季最肥','遠赴深海產卵，幼苗洄游溯河成長'],
+  ['香魚','アユ',1,12,25,300,'#8fa377','#e4ead0','#728a5a','slim','清澈急瀨的石床','附石矽藻','初夏至秋','身具瓜香，有強烈地盤性，友釣名魚'],
+  ['虹鱒','ニジマス',1,20,50,310,'#9fb0bc','#f0c9cf','#7d909c','slim','冷涼清流與山澗','水生昆蟲與小魚','春秋涼季','體側一抹虹彩，是溪流的人氣對象魚'],
+  ['山女魚','ヤマメ',2,15,30,390,'#a7b2bb','#e6ecef','#828d96','slim','源頭冷水溪段','落水昆蟲','春至初夏','體側帶橢圓朱紋，溪流女王之稱'],
+  ['岩魚','イワナ',2,18,40,430,'#5b6760','#cdb79a','#48524c','slim','最上游的清冷岩區','水棲昆蟲與小魚','涼季','棲於溪流最上層，警覺而難釣'],
+  ['鱸魚','スズキ',1,30,80,360,'#aeb9c2','#eef2f5','#8b97a0','normal','河口汽水域與港灣','小魚與蝦','夏秋','洄游於淡鹹水之間，拉力十足'],
+  ['黑鯛','クロダイ',1,25,50,330,'#5d646a','#b7bcc1','#474d52','deep','防波堤與河口岩礁','貝類、蟹與藻','四季','雜食而機警，是磯釣經典對象'],
+  ['烏魚','ボラ',0,25,60,130,'#9aa6b0','#e6ebf0','#7c8893','slim','河口與內灣淺水','刮食底泥有機質','冬季最肥','洄游成群，卵巢可製烏魚子'],
+  ['吳郭魚','ティラピア',0,15,40,80,'#7f8488','#c2c6c9','#666b6f','deep','溫暖靜水與排水路','藻類與雜食','全年','適應力極強，台灣常見的外來種'],
+  ['雷魚','ライギョ',1,30,80,270,'#5f6b4a','#bcae7c','#4a5439','eel','水草密布的死水','蛙、小魚與昆蟲','夏季','可呼吸空氣，伏擊型的兇猛掠食者'],
+  ['翹嘴','ハス',1,20,50,250,'#b7c0c7','#eef2f4','#94a0a8','slim','大河與水庫中上層','追食小魚','夏秋黃昏','口上翹善於水面掠食，爆發力強'],
+  ['泥鰍','ドジョウ',0,8,20,70,'#7a6b4e','#cbb98c','#5e533d','eel','水田與泥底溝渠','底泥中的有機碎屑','春夏','以腸呼吸，缺氧亦能存活'],
+  ['黃鱔','タウナギ',0,25,60,110,'#9a7f4a','#d8c084','#7c652f','eel','水田與泥岸洞穴','蚯蚓、小魚與昆蟲','夏季','晝伏夜出，性別可隨成長轉變'],
+  ['馬口魚','オイカワ',0,8,18,60,'#b7c2cb','#e8d3d8','#7f93cf','slim','清澈淺流','落水昆蟲與藻','春夏婚姻色','繁殖期雄魚體色鮮豔如彩虹'],
+  ['溪哥','カワムツ',0,8,16,55,'#9fb0bb','#e4eaee','#6f8fb0','slim','低海拔清流','水生昆蟲','全年','溪釣最常見，動作敏捷成群活動'],
+  ['苦花','ウグイ',1,12,25,210,'#aab4bb','#dfe6ea','#86919a','slim','清冷急瀨石床','刮食附石藻類','涼季','以唇刮藻，腹膜黑，肉質清甜'],
+  ['石斑','ヨシノボリ',0,8,20,90,'#8a7d63','#cabd9c','#6b6049','slim','溪流石縫','水棲昆蟲','全年','體側暗色橫帶，溪石間的小衛兵'],
+  ['蓋斑鬥魚','タイワンキンギョ',1,4,7,190,'#5a7fa8','#d36a5a','#e0b94a','deep','水田與靜水池','孑孓與小型蟲','繁殖期夏','會築泡巢護卵，閃耀金屬光澤'],
+  ['鰕虎','ハゼ',0,5,12,50,'#8a8170','#cfc7b2','#6c6456','slim','河口泥沙底','小型底棲生物','秋季','吸盤狀腹鰭可附著，種類繁多'],
+  ['彈塗魚','トビハゼ',1,8,15,170,'#4f5b66','#9aa6ae','#6a7b8a','slim','河口潮間帶泥灘','藻類與小蟲','暖季','能離水跳躍，於泥灘上跳動覓食'],
+  ['石鮒','タナゴ',1,4,8,180,'#9fb6bc','#d98c9a','#6fae9a','deep','水草豐富的靜水','藻類與浮游生物','繁殖期春','將卵產於河蚌鰓中，體色華麗'],
+  ['河豚','クサフグ',2,10,30,520,'#c9b85a','#e8e0b0','#5a6048','round','河口與內灣砂底','貝、蟹與小生物','秋冬','受驚會鼓脹成球，部分種類具毒'],
+  ['鱖魚','ケツギョ',2,20,50,470,'#8a7f5e','#cabf94','#5e5740','deep','清澈緩流深潭','伏擊小魚與蝦','春秋','花紋斑斕的高級食用魚，又稱桂魚'],
+  ['櫻鱒','サクラマス',2,30,60,540,'#b3a7ac','#f0c6cc','#8d8186','slim','洄游於河海之間','小魚與甲殼類','春櫻時節','山女魚降海型，銀亮體色帶櫻紅'],
+  ['真鯛','マダイ',2,25,60,570,'#d99a96','#f3d6cf','#c47e7a','deep','岩礁與砂泥海域','貝、蟹與小魚','春秋','體色嫣紅帶藍點，喜慶的吉祥魚'],
+  ['鰈魚','カレイ',1,20,50,300,'#7d6f57','#d8cdb4','#5f5645','flat','河口至近海砂泥底','底棲蟲與貝','冬季','雙眼移至同側，平貼海底擬態'],
+  ['沙梭','キス',0,12,25,120,'#d8cdb8','#f2ece0','#bcae94','slim','潔淨砂質淺海','底棲小蟲','夏季','體型纖細優雅，投釣的人氣魚種'],
+  ['白鰷','ヤマベ',0,6,14,50,'#c2cbd2','#eef2f5','#9aa4ac','slim','清淺流水上層','落水昆蟲','春夏','銀亮小巧，群游時水面波光粼粼'],
+  ['青魚','アオウオ',1,40,100,340,'#566a72','#aebac0','#43545b','normal','大河深水區','螺蚌等底棲貝類','夏秋','以咽齒壓碎螺貝，體型可達巨大'],
+  ['大頭鰱','コクレン',0,30,80,140,'#6a737a','#c2c8cc','#525a60','normal','水庫與大河中層','濾食浮游動物','夏季','頭部碩大，常與白鰱混棲'],
+  ['何氏棘魞','カマツカ',0,15,40,150,'#b6ad8e','#e6dcc0','#cfae5e','normal','低海拔大河深潭','底棲昆蟲與小魚','暖季','口角具鬚，是溪河中的大型鯉科'],
+  ['鱸鰻','オオウナギ',3,60,150,1250,'#5a5340','#cabf94','#403b2e','eel','河川中下游深潭','魚、蝦、蟹與蛙','夏季','體布雲狀斑，部分溪段列為保育'],
+  ['須鱲','ズナガニゴイ',1,8,16,150,'#a8b6bc','#e0c6cc','#7f9ed0','slim','乾淨低海拔溪流','落水昆蟲','婚姻色夏','雄魚婚姻色繽紛，台灣特有的美麗小魚'],
+  ['高身鯝魚','タカハヤ',2,15,30,300,'#aab6bc','#dee6ea','#808f99','slim','中上游清澈水域','刮食藻類','涼季','台灣特有亞種，洄游於清淨溪段'],
+  ['櫻花鉤吻鮭','タイワンマス',4,20,40,2200,'#9fb1bc','#f0c4cb','#7c8e99','slim','高山冷冽清流','水生昆蟲','涼季','冰河孑遺、台灣國寶，僅存大甲溪上游'],
+];
+
+const VARIANTS = [
+  { pre:'',     mul:1,   dr:0, sizeMul:1.00, tint:null,                  desc:'' },
+  { pre:'斑紋', mul:1.7, dr:1, sizeMul:1.06, tint:{type:'spot'},          desc:'體側帶有獨特斑紋的個體，' },
+  { pre:'金線', mul:3.2, dr:1, sizeMul:1.10, tint:{type:'mix',c:'#e8c14a',a:0.55}, desc:'鱗片泛著金線般光澤，' },
+  { pre:'深潭', mul:2.4, dr:1, sizeMul:1.28, tint:{type:'dark',a:0.5},    desc:'棲於深潭、體色濃郁的壯碩個體，' },
+  { pre:'白化', mul:7.0, dr:2, sizeMul:1.00, tint:{type:'mix',c:'#f4eef0',a:0.82}, desc:'極為罕見的白化個體，' },
+];
+
+function hexToRgb(h){ const n=parseInt(h.replace('#',''),16); return [(n>>16)&255,(n>>8)&255,n&255]; }
+function rgbToHex(r){ return '#'+r.map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join(''); }
+function tintColor(hex, tint){
+  if(!tint) return hex;
+  let c = hexToRgb(hex);
+  if(tint.type==='dark') return rgbToHex(c.map(v=>v*(1-tint.a*0.7)));
+  if(tint.type==='mix'){ const t=hexToRgb(tint.c); return rgbToHex(c.map((v,i)=>v*(1-tint.a)+t[i]*tint.a)); }
+  if(tint.type==='spot'){ return rgbToHex(c.map(v=>v*0.92)); }
+  return hex;
+}
+
+const SPECIES = [];
+let sid=0;
+for(const f of FAMILIES){
+  const [zh,ja,rar,lmin,lmax,val,c1,c2,fin,shape,hab,food,season,note]=f;
+  for(const v of VARIANTS){
+    const rIdx = Math.min(4, rar + v.dr);
+    SPECIES.push({
+      id:sid++, zh:v.pre+zh, baseZh:zh, ja, shape,
+      rarity:rIdx,
+      lenMin:+(lmin*v.sizeMul).toFixed(0), lenMax:+(lmax*v.sizeMul).toFixed(0),
+      baseValue:Math.round(val*v.mul),
+      color1:tintColor(c1,v.tint), color2:tintColor(c2,v.tint), finColor:tintColor(fin,v.tint),
+      albino: v.pre==='白化',
+      desc:`${v.desc}${zh}（${ja}）。${note}。多棲息於${hab}，以${food}為食，盛漁期為${season}。`,
+    });
+  }
+}
+const DEX_TOTAL = SPECIES.length;
+
+// 加權抽魚
+const WEIGHT_TOTAL = SPECIES.reduce((s,sp)=>s+RARITY[sp.rarity].weight,0);
+function rollSpecies(){
+  let r = Math.random()*WEIGHT_TOTAL;
+  for(const sp of SPECIES){ r -= RARITY[sp.rarity].weight; if(r<=0) return sp; }
+  return SPECIES[0];
+}
+const SHAPE_DENSITY={ eel:0.0011, flat:0.0016, round:0.0024, normal:0.0019, slim:0.0015, deep:0.0021 };
+function rollCatch(sp){
+  const t=Math.random();
+  const len=+(sp.lenMin+(sp.lenMax-sp.lenMin)*t).toFixed(1);
+  const wt=+((len**3)*(SHAPE_DENSITY[sp.shape]||0.0019)/1000).toFixed(2);
+  const sizeNorm=t;
+  return { len, wt, sizeNorm };
+}
+
+/* =========================================================================
+   2. 參數化魚體 3D 模型（平滑圓潤，日系乾淨）
+   ========================================================================= */
+function makeFishMesh(sp){
+  const p = SHAPES[sp.shape] || SHAPES.normal;
+  const g = new THREE.Group();
+  const L = p.len;
+
+  // 身體：Lathe 旋轉曲面 → 平滑無菱角
+  const N=30, pts=[];
+  for(let i=0;i<=N;i++){
+    const t=i/N;                               // 0 尾 → 1 頭
+    const body=Math.sin(Math.PI*Math.pow(t,0.7));
+    let r=p.maxR*Math.pow(Math.max(body,0),p.fat);
+    r=Math.max(r,0.013);
+    pts.push(new THREE.Vector2(r, t*L));
+  }
+  const bodyGeo=new THREE.LatheGeometry(pts,28);
+  const bodyMat=new THREE.MeshStandardMaterial({ color:sp.color1, roughness:0.5, metalness:0.08 });
+  const body=new THREE.Mesh(bodyGeo,bodyMat);
+  body.scale.set(1, p.flatY||1, p.width);
+  g.add(body);
+
+  const finMat=new THREE.MeshStandardMaterial({ color:sp.finColor, roughness:0.6, metalness:0.02,
+    side:THREE.DoubleSide, transparent:true, opacity:0.96 });
+
+  // 尾鰭
+  const tH=p.maxR*1.5*p.tail, tL=L*0.32*p.tail;
+  const tail=new THREE.Shape();
+  tail.moveTo(0,0.02*L); tail.lineTo(tH,-tL); tail.lineTo(tH*0.35,-tL*1.18);
+  tail.lineTo(-tH*0.35,-tL*1.18); tail.lineTo(-tH,-tL); tail.closePath();
+  const tailMesh=new THREE.Mesh(new THREE.ShapeGeometry(tail),finMat);
+  g.add(tailMesh);
+
+  // 背鰭
+  if(p.dorsal){
+    const d=new THREE.Shape();
+    d.moveTo(p.maxR*0.7,L*0.42); d.lineTo(p.maxR*0.85,L*0.74);
+    d.lineTo(p.maxR*1.7,L*0.6); d.closePath();
+    g.add(new THREE.Mesh(new THREE.ShapeGeometry(d),finMat));
+  }
+
+  // 眼睛
+  const eyeGeo=new THREE.SphereGeometry(p.maxR*0.16,12,12);
+  const eyeMat=new THREE.MeshStandardMaterial({ color:sp.albino?'#d05a6a':'#22262a', roughness:0.3 });
+  for(const z of [1,-1]){
+    const e=new THREE.Mesh(eyeGeo,eyeMat);
+    e.position.set(p.maxR*0.5, L*0.84, z*p.maxR*p.width*0.62);
+    g.add(e);
+    const hl=new THREE.Mesh(new THREE.SphereGeometry(p.maxR*0.06,8,8),
+      new THREE.MeshBasicMaterial({color:'#ffffff'}));
+    hl.position.set(p.maxR*0.62, L*0.86, z*p.maxR*p.width*0.6);
+    g.add(hl);
+  }
+
+  g.rotation.z=Math.PI/2;          // 頭朝 -X，背朝上
+  g.userData.len=L;
+  return g;
+}
+
+/* =========================================================================
+   3. 場景：天空、水面、河岸、遠山、合流島、釣竿
+   ========================================================================= */
+const canvas=document.getElementById('scene');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+
+const scene=new THREE.Scene();
+const HORIZON=new THREE.Color('#d6ecf2');
+scene.fog=new THREE.Fog(HORIZON,45,200);
+
+const camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,0.1,800);
+camera.position.set(0,1.75,6);
+scene.add(camera);
+
+const sunDir=new THREE.Vector3(-0.45,0.6,-0.75).normalize();
+
+// --- 天空 ---
+const skyMat=new THREE.ShaderMaterial({
+  side:THREE.BackSide, depthWrite:false,
+  uniforms:{ top:{value:new THREE.Color('#6fb7e8')}, bottom:{value:new THREE.Color('#e7f3f6')},
+    sunCol:{value:new THREE.Color('#fff3da')}, sunDir:{value:sunDir} },
+  vertexShader:`varying vec3 vP; void main(){ vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);} `,
+  fragmentShader:`uniform vec3 top,bottom,sunCol,sunDir; varying vec3 vP;
+    void main(){ vec3 d=normalize(vP); float h=clamp(d.y*0.5+0.5,0.0,1.0);
+      vec3 c=mix(bottom,top,pow(h,0.8));
+      float s=max(dot(d,normalize(sunDir)),0.0);
+      c+=sunCol*pow(s,210.0)*1.4 + sunCol*pow(s,7.0)*0.22;
+      gl_FragColor=vec4(c,1.0);} `,
+});
+scene.add(new THREE.Mesh(new THREE.SphereGeometry(400,32,24),skyMat));
+
+// --- 燈光 ---
+scene.add(new THREE.HemisphereLight('#dff0f7','#7e9a78',1.05));
+const sun=new THREE.DirectionalLight('#fff4e0',1.25);
+sun.position.copy(sunDir).multiplyScalar(60);
+scene.add(sun);
+
+// --- 水面（自訂著色器：柔波＋陽光反光＋遠處融入地平線）---
+const WAVE_GLSL=`
+  float wv(vec2 p,float t){ float h=0.0;
+    h+=sin(p.x*0.6+t*1.1)*0.16; h+=sin(p.y*0.5-t*0.9)*0.14;
+    h+=sin((p.x+p.y)*0.3+t*0.7)*0.10; h+=sin((p.x*0.9-p.y*0.7)+t*1.6)*0.05;
+    return h; }`;
+const waterUniforms={
+  uTime:{value:0}, uDeep:{value:new THREE.Color('#2f7d8c')}, uShallow:{value:new THREE.Color('#74c6c8')},
+  uHorizon:{value:HORIZON}, uSun:{value:sunDir}, uSunCol:{value:new THREE.Color('#fff2d6')},
+  uCam:{value:new THREE.Vector3()},
+};
+const waterMat=new THREE.ShaderMaterial({
+  uniforms:waterUniforms,
+  vertexShader:`uniform float uTime; varying vec3 vW; varying vec3 vN; ${WAVE_GLSL}
+    void main(){ vec4 w=modelMatrix*vec4(position,1.0);
+      float h=wv(w.xz,uTime); float e=0.3;
+      float hx=wv(w.xz+vec2(e,0.0),uTime); float hz=wv(w.xz+vec2(0.0,e),uTime);
+      w.y+=h; vN=normalize(vec3(-(hx-h)/e,1.0,-(hz-h)/e)); vW=w.xyz;
+      gl_Position=projectionMatrix*viewMatrix*w; }`,
+  fragmentShader:`uniform vec3 uDeep,uShallow,uHorizon,uSun,uSunCol,uCam; varying vec3 vW; varying vec3 vN;
+    void main(){ vec3 v=normalize(uCam-vW);
+      float fres=pow(1.0-max(dot(vN,v),0.0),3.0);
+      vec3 base=mix(uDeep,uShallow,clamp(vN.y*0.6+0.25,0.0,1.0));
+      vec3 col=mix(base,uHorizon,clamp(fres*0.85,0.0,1.0));
+      vec3 hf=normalize(v+normalize(uSun));
+      col+=uSunCol*pow(max(dot(vN,hf),0.0),140.0)*1.3;
+      float d=length(uCam.xz-vW.xz);
+      col=mix(col,uHorizon,smoothstep(45.0,150.0,d));
+      gl_FragColor=vec4(col,1.0); }`,
+});
+const waterGeo=new THREE.PlaneGeometry(300,300,140,140);
+const water=new THREE.Mesh(waterGeo,waterMat);
+water.rotation.x=-Math.PI/2;
+scene.add(water);
+function waveHeight(x,z,t){ return Math.sin(x*0.6+t*1.1)*0.16+Math.sin(z*0.5-t*0.9)*0.14
+  +Math.sin((x+z)*0.3+t*0.7)*0.10+Math.sin((x*0.9-z*0.7)+t*1.6)*0.05; }
+
+// --- 河岸（兩側）＋蘆葦 ---
+function smoothMat(c){ return new THREE.MeshStandardMaterial({color:c,roughness:0.92,metalness:0,flatShading:false}); }
+function makeBank(side){
+  const g=new THREE.Group();
+  const slab=new THREE.Mesh(new THREE.BoxGeometry(40,3,260), smoothMat('#8fbf6b'));
+  slab.position.set(side*30,-1.2,-60);
+  g.add(slab);
+  const dirt=new THREE.Mesh(new THREE.BoxGeometry(40,3,260),smoothMat('#b9a37a'));
+  dirt.position.set(side*30,-2.6,-60); g.add(dirt);
+  // 樹與蘆葦
+  for(let i=0;i<26;i++){
+    const z=-130+Math.random()*250, x=side*(12+Math.random()*26);
+    if(Math.random()<0.5) g.add(makeTree(x,0.1,z, 1+Math.random()*1.2));
+    else g.add(makeReed(side*(11+Math.random()*3),0,z));
+  }
+  return g;
+}
+function makeTree(x,y,z,s){
+  const t=new THREE.Group();
+  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(0.18*s,0.28*s,1.6*s,8),smoothMat('#a07c52'));
+  trunk.position.y=0.8*s; t.add(trunk);
+  const greens=['#7fb86a','#74ad60','#8cc278'];
+  for(let i=0;i<3;i++){
+    const c=new THREE.Mesh(new THREE.IcosahedronGeometry((0.9-i*0.18)*s,2),smoothMat(greens[i%3]));
+    c.position.y=(1.6+i*0.55)*s; c.scale.y=0.9; t.add(c);
+  }
+  t.position.set(x,y,z); t.rotation.y=Math.random()*6.28; return t;
+}
+function makeReed(x,y,z){
+  const g=new THREE.Group();
+  for(let i=0;i<7;i++){
+    const h=0.8+Math.random()*1.0;
+    const r=new THREE.Mesh(new THREE.CylinderGeometry(0.015,0.03,h,5),smoothMat('#7fae5b'));
+    r.position.set((Math.random()-0.5)*0.8,h/2,(Math.random()-0.5)*0.8);
+    r.rotation.z=(Math.random()-0.5)*0.3; g.add(r);
+  }
+  g.position.set(x,y,z); return g;
+}
+scene.add(makeBank(1)); scene.add(makeBank(-1));
+
+// --- 遠山 ＋ 合流中島 ---
+function makeHill(x,z,s,c){
+  const h=new THREE.Mesh(new THREE.SphereGeometry(s,24,16,0,Math.PI*2,0,Math.PI*0.5),smoothMat(c));
+  h.position.set(x,-1.5,z); h.scale.y=0.55; return h;
+}
+scene.add(makeHill(-30,-150,40,'#9cc0ac'));
+scene.add(makeHill(28,-165,52,'#8fb6a4'));
+scene.add(makeHill(2,-185,64,'#a7c8b6'));
+// 合流中島（遠處把水流一分為二）
+const island=new THREE.Group();
+const im=new THREE.Mesh(new THREE.SphereGeometry(12,24,16,0,Math.PI*2,0,Math.PI*0.5),smoothMat('#86bd66'));
+im.scale.y=0.4; island.add(im);
+for(let i=0;i<6;i++) island.add(makeTree((Math.random()-0.5)*14,0,(Math.random()-0.5)*14,1+Math.random()));
+island.position.set(0,-0.6,-95); scene.add(island);
+
+// --- 水面下悠游的點景魚 ---
+const ambient=[];
+for(let i=0;i<7;i++){
+  const m=makeFishMesh(rollSpecies());
+  m.scale.setScalar(0.5+Math.random()*0.5);
+  m.position.set((Math.random()-0.5)*16,-0.6-Math.random()*0.6,-10-Math.random()*22);
+  m.userData.spd=0.2+Math.random()*0.3; m.userData.rad=4+Math.random()*6;
+  m.userData.ph=Math.random()*6.28; m.userData.cz=m.position.z;
+  scene.add(m); ambient.push(m);
+}
+
+// --- 第一人稱釣竿 ---
+const rod=new THREE.Group();
+const ROD_LEN=2.7;
+const rodGeo=new THREE.CylinderGeometry(0.012,0.032,ROD_LEN,12);
+rodGeo.translate(0,ROD_LEN/2,0);
+const rodMesh=new THREE.Mesh(rodGeo,new THREE.MeshStandardMaterial({color:'#4a3b30',roughness:0.5,metalness:0.3}));
+rod.add(rodMesh);
+const handle=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.045,0.5,12),
+  new THREE.MeshStandardMaterial({color:'#2b2b2e',roughness:0.8}));
+handle.position.y=0.2; rod.add(handle);
+const reel=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,0.05,16),
+  new THREE.MeshStandardMaterial({color:'#caa24a',roughness:0.35,metalness:0.6}));
+reel.rotation.x=Math.PI/2; reel.position.set(0.06,0.55,0.05); rod.add(reel);
+rod.position.set(0.6,-0.5,-0.85); rod.rotation.set(-0.5,0,0.26);
+camera.add(rod);
+const rodTipLocal=new THREE.Vector3(0,ROD_LEN,0);
+
+// --- 浮標 ---
+const bobber=new THREE.Group();
+const bTop=new THREE.Mesh(new THREE.SphereGeometry(0.12,16,16,0,6.28,0,Math.PI/2),
+  new THREE.MeshStandardMaterial({color:'#e8553e',roughness:0.4}));
+const bBot=new THREE.Mesh(new THREE.SphereGeometry(0.12,16,16,0,6.28,Math.PI/2,Math.PI/2),
+  new THREE.MeshStandardMaterial({color:'#f7f4ec',roughness:0.4}));
+const bAnt=new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.008,0.3,6),
+  new THREE.MeshStandardMaterial({color:'#e8553e'}));
+bAnt.position.y=0.2; bobber.add(bTop); bobber.add(bBot); bobber.add(bAnt);
+const CAST=new THREE.Vector3(0,0,-11);
+bobber.position.copy(CAST); bobber.visible=false; scene.add(bobber);
+
+// --- 釣線 ---
+const lineMat=new THREE.LineBasicMaterial({color:'#f3f5f4',transparent:true,opacity:0.7});
+const lineGeo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(),new THREE.Vector3()]);
+const fishLine=new THREE.Line(lineGeo,lineMat); fishLine.visible=false; scene.add(fishLine);
+
+// --- 漣漪 ---
+const ripples=[];
+function spawnRipple(pos){
+  const r=new THREE.Mesh(new THREE.RingGeometry(0.1,0.16,32),
+    new THREE.MeshBasicMaterial({color:'#ffffff',transparent:true,opacity:0.7,side:THREE.DoubleSide}));
+  r.rotation.x=-Math.PI/2; r.position.copy(pos); r.position.y=0.02;
+  r.userData.t=0; scene.add(r); ripples.push(r);
+}
+
+/* =========================================================================
+   4. 漁獲預覽（獨立小渲染器）
+   ========================================================================= */
+const pCanvas=document.getElementById('previewCanvas');
+const pRenderer=new THREE.WebGLRenderer({canvas:pCanvas,antialias:true,alpha:true});
+pRenderer.setPixelRatio(Math.min(devicePixelRatio,2));
+pRenderer.setSize(188,188,false);
+const pScene=new THREE.Scene();
+pScene.add(new THREE.HemisphereLight('#ffffff','#9ab',1.1));
+const pDir=new THREE.DirectionalLight('#fff',1.1); pDir.position.set(2,3,4); pScene.add(pDir);
+const pCam=new THREE.PerspectiveCamera(40,1,0.1,50); pCam.position.set(0,0.2,4.5);
+let pFish=null, pActive=false;
+function setPreview(sp){
+  if(pFish) pScene.remove(pFish);
+  pFish=makeFishMesh(sp);
+  const len=pFish.userData.len;
+  pFish.scale.setScalar(2.4/len);
+  pScene.add(pFish); pActive=true;
+}
+
+/* =========================================================================
+   5. 遊戲狀態機
+   ========================================================================= */
+const S={ READY:'ready', CASTING:'casting', WAITING:'waiting', BITE:'bite', RESULT:'result', LOCK:'lock' };
+let state=S.LOCK;
+const clock=new THREE.Clock();
+let now=0;
+
+let castStart=0, biteAt=0, biteStart=0, castFrom=new THREE.Vector3();
+const SWEEP=1500;                       // 起竿時機條總時長(ms)
+const ZONE=[30,82], PERFECT=[46,64];    // 綠區、黃心(百分比)
+
+// 進度
+let coins=0, catchCount=0;
+const discovered=new Set();
+let pendingCatch=null;
+
+function load(){
+  try{
+    const d=JSON.parse(localStorage.getItem('fishing_save')||'{}');
+    coins=d.coins||0; catchCount=d.catchCount||0;
+    (d.discovered||[]).forEach(i=>discovered.add(i));
+  }catch(e){}
+}
+function save(){
+  localStorage.setItem('fishing_save',JSON.stringify(
+    {coins,catchCount,discovered:[...discovered]}));
+}
+function updateHUD(){
+  document.getElementById('coins').textContent=coins.toLocaleString();
+  document.getElementById('dexcount').textContent=discovered.size;
+  document.getElementById('dextotal').textContent=DEX_TOTAL;
+  document.getElementById('catchcount').textContent=catchCount;
+}
+
+// UI 元素
+const elHint=document.getElementById('hint');
+const elTiming=document.getElementById('timing');
+const elMarker=document.getElementById('marker');
+const elZone=document.getElementById('zone');
+const elZoneP=document.getElementById('zonePerfect');
+elZone.style.left=ZONE[0]+'%'; elZone.style.width=(ZONE[1]-ZONE[0])+'%';
+elZoneP.style.left=PERFECT[0]+'%'; elZoneP.style.width=(PERFECT[1]-PERFECT[0])+'%';
+
+function setHint(html){ elHint.innerHTML=html; elHint.style.opacity=html?1:0; }
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg;
+  t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),1600); }
+
+function cast(){
+  state=S.CASTING; castStart=now;
+  camera.updateMatrixWorld(true);
+  castFrom.copy(rodTipLocal).applyMatrix4(rod.matrixWorld);
+  bobber.visible=true; fishLine.visible=true;
+  setHint('');
+  sfx('cast');
+}
+function startWait(){
+  state=S.WAITING; biteAt=now+2500+Math.random()*5000;
+  setHint('靜待魚訊…<small>水面平靜，屏息以待</small>');
+}
+function startBite(){
+  state=S.BITE; biteStart=now;
+  elTiming.classList.add('show');
+  spawnRipple(bobber.position); spawnRipple(bobber.position);
+  sfx('bite'); toast('有魚咬鉤！');
+}
+function endBite(escaped){
+  elTiming.classList.remove('show');
+}
+
+function strike(){
+  const prog=(now-biteStart)/SWEEP*100;
+  endBite();
+  let grade;
+  if(prog<ZONE[0]){ fail('起竿太早，魚兒受驚逃逸'); return; }
+  if(prog>ZONE[1]){ fail('起竿太遲，魚兒掙脫了'); return; }
+  grade = (prog>=PERFECT[0]&&prog<=PERFECT[1]) ? 'perfect' : 'good';
+  succeed(grade);
+}
+function fail(msg){
+  state=S.RESULT;
+  bobber.visible=false; fishLine.visible=false;
+  sfx('fail'); toast(msg);
+  setTimeout(()=>{ if(state===S.RESULT){ state=S.READY;
+    setHint('點擊或按 <b>空白鍵</b> 重新拋竿'); } },300);
+}
+function succeed(grade){
+  state=S.RESULT;
+  bobber.visible=false; fishLine.visible=false;
+  sfx('win');
+  const sp=rollSpecies();
+  const c=rollCatch(sp);
+  const mul=grade==='perfect'?1.4:1.0;
+  const value=Math.round(sp.baseValue*(0.55+0.9*c.sizeNorm)*mul);
+  pendingCatch={sp,c,value,grade};
+  showResult(sp,c,value,grade);
+}
+
+function showResult(sp,c,value,grade){
+  const R=RARITY[sp.rarity];
+  document.getElementById('gradeBig').textContent = grade==='perfect'?'完 美':'釣 獲';
+  document.getElementById('gradeBig').style.color = grade==='perfect'?'#e0a93b':'#3c4043';
+  document.getElementById('rName').textContent=sp.zh;
+  document.getElementById('rJa').textContent=sp.ja;
+  const b=document.getElementById('rBadge'); b.textContent=R.label; b.style.background=R.color;
+  document.getElementById('rLen').textContent=c.len+' cm';
+  document.getElementById('rWt').textContent=c.wt+' kg';
+  document.getElementById('rRare').textContent=R.label;
+  document.getElementById('rRare').style.color=R.color;
+  document.getElementById('rVal').textContent=value.toLocaleString()+' 円'+(grade==='perfect'?'  ✨×1.4':'');
+  document.getElementById('rDesc').textContent=sp.desc;
+  setPreview(sp);
+  document.getElementById('result').classList.add('show');
+}
+
+function closeResult(keep){
+  document.getElementById('result').classList.remove('show');
+  pActive=false;
+  if(keep && pendingCatch){
+    coins+=pendingCatch.value; catchCount++;
+    discovered.add(pendingCatch.sp.id); save(); updateHUD();
+  }
+  pendingCatch=null;
+  state=S.READY;
+  setHint('點擊或按 <b>空白鍵</b> 拋竿<small>面向這片風光明媚的合流，靜待魚訊</small>');
+}
+
+/* =========================================================================
+   6. 輸入
+   ========================================================================= */
+let clickN=0,keyN=0,sgCalls=0;
+const dbg=document.createElement('div');
+dbg.style.cssText='position:fixed;left:8px;bottom:8px;z-index:9998;font:12px ui-monospace,monospace;background:rgba(0,0,0,.45);color:#fff;padding:3px 8px;border-radius:6px;pointer-events:none';
+document.body.appendChild(dbg);
+
+function onAction(){
+  if(state===S.READY) cast();
+  else if(state===S.WAITING) fail('太早收線，驚走了魚兒');
+  else if(state===S.BITE) strike();
+}
+addEventListener('keydown',e=>{
+  if(e.code==='Space'){ e.preventDefault(); keyN++;
+    if(document.getElementById('result').classList.contains('show')) return;
+    if(state===S.LOCK){ startGame(); return; }   // 鎖定時直接開始
+    onAction(); }
+  if(e.code==='Escape') document.getElementById('book').classList.remove('show');
+});
+// 綁在 window：即使有任何覆蓋層也能收到（點到 UI 面板/按鈕則略過）
+addEventListener('pointerdown',e=>{
+  if(e.target.closest && e.target.closest('#tools,#result,#book,.toolbtn,.btn,.chip')) return;
+  clickN++;
+  if(state===S.LOCK){ startGame(); return; }     // 鎖定時直接開始
+  onAction();
+});
+
+// 滑鼠環顧
+let yaw=0,pitch=0,tYaw=0,tPitch=0;
+addEventListener('pointermove',e=>{
+  tYaw=-(e.clientX/innerWidth-0.5)*0.5;
+  tPitch=-(e.clientY/innerHeight-0.5)*0.18;
+});
+
+document.getElementById('btnRelease').onclick=()=>closeResult(false);
+document.getElementById('btnKeep').onclick=()=>closeResult(true);
+
+/* =========================================================================
+   7. 圖鑑
+   ========================================================================= */
+const bookEl=document.getElementById('book');
+document.getElementById('btnBook').onclick=openBook;
+document.getElementById('btnBookClose').onclick=()=>bookEl.classList.remove('show');
+function openBook(){
+  const grid=document.getElementById('bookGrid'); grid.innerHTML='';
+  document.getElementById('bookSub').textContent=`已收集 ${discovered.size} / ${DEX_TOTAL} 種`;
+  for(const sp of SPECIES){
+    const seen=discovered.has(sp.id);
+    const R=RARITY[sp.rarity];
+    const cell=document.createElement('div');
+    cell.className='fishcell'+(seen?'':' locked');
+    cell.innerHTML=seen
+      ? `<span class="dot" style="background:${R.color}"></span>
+         <div class="cn">${sp.zh}</div><div class="cj">${sp.ja}</div>
+         <div class="cv">${sp.baseValue.toLocaleString()} 円~</div>`
+      : `<span class="dot" style="background:#cdd3d6"></span>
+         <div class="cn">？？？</div><div class="cj">未發現</div><div class="cv">— 円</div>`;
+    if(seen) cell.onclick=()=>showDexDetail(sp);
+    grid.appendChild(cell);
+  }
+  document.getElementById('bookSide').innerHTML='<div class="ph">點選左側魚種<br/>查看詳細資料</div>';
+  bookEl.classList.add('show');
+}
+function showDexDetail(sp){
+  const R=RARITY[sp.rarity];
+  document.getElementById('bookSide').innerHTML=`
+    <div style="font-size:20px;font-weight:800;letter-spacing:1px">${sp.zh}</div>
+    <div style="font-size:12px;color:#6b7177;margin:2px 0 8px">${sp.ja}</div>
+    <span class="badge" style="background:${R.color}">${R.label}</span>
+    <div style="margin:14px 0 6px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="stat"><div class="k">體長</div><div class="v">${sp.lenMin}~${sp.lenMax} cm</div></div>
+      <div class="stat"><div class="k">基準價值</div><div class="v gold">${sp.baseValue.toLocaleString()} 円</div></div>
+    </div>
+    <div class="desc" style="margin:10px 0 0">${sp.desc}</div>`;
+}
+
+/* =========================================================================
+   8. 音效（WebAudio 合成，自給自足）
+   ========================================================================= */
+let actx=null, muted=false;
+function audio(){ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); return actx; }
+function blip(freq,dur,type='sine',vol=0.15){
+  if(muted) return; const a=audio();
+  const o=a.createOscillator(),g=a.createGain();
+  o.type=type; o.frequency.value=freq; o.connect(g); g.connect(a.destination);
+  g.gain.setValueAtTime(vol,a.currentTime); g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+dur);
+  o.start(); o.stop(a.currentTime+dur);
+}
+function sfx(k){
+  if(k==='cast') blip(420,0.18,'triangle',0.1);
+  if(k==='bite'){ blip(880,0.1,'square',0.12); setTimeout(()=>blip(660,0.12,'square',0.12),90); }
+  if(k==='win'){ blip(660,0.12,'sine',0.14); setTimeout(()=>blip(880,0.12,'sine',0.14),110);
+    setTimeout(()=>blip(1180,0.2,'sine',0.14),230); }
+  if(k==='fail') blip(200,0.3,'sawtooth',0.1);
+}
+document.getElementById('btnMute').onclick=function(){ muted=!muted;
+  this.textContent=muted?'🔇':'🔊'; };
+
+/* =========================================================================
+   9. 主迴圈
+   ========================================================================= */
+const tip=new THREE.Vector3();
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=clock.getDelta(); now=performance.now();
+  const t=clock.elapsedTime;
+  waterUniforms.uTime.value=t;
+  camera.getWorldPosition(waterUniforms.uCam.value);
+  dbg.textContent='state='+state+'  sg='+sgCalls+'  click='+clickN+'  key='+keyN;
+
+  // 環顧（平滑）
+  yaw+=(tYaw-yaw)*0.05; pitch+=(tPitch-pitch)*0.05;
+  camera.rotation.set(pitch,yaw,0);
+  camera.position.x=Math.sin(t*0.3)*0.04;
+  camera.position.y=1.75+Math.sin(t*0.7)*0.02;
+
+  // 點景魚悠游
+  for(const m of ambient){
+    m.userData.ph+=dt*m.userData.spd;
+    m.position.x=Math.sin(m.userData.ph)*m.userData.rad;
+    m.position.z=m.userData.cz+Math.cos(m.userData.ph)*m.userData.rad*0.4;
+    m.rotation.y=-m.userData.ph+Math.PI/2;
+    m.position.y=-0.55+Math.sin(t+m.userData.ph)*0.05;
+  }
+
+  // 浮標
+  if(bobber.visible){
+    let bx=CAST.x,bz=CAST.z;
+    if(state===S.CASTING){
+      const k=Math.min(1,(now-castStart)/650);
+      bx=castFrom.x+(CAST.x-castFrom.x)*k;
+      bz=castFrom.z+(CAST.z-castFrom.z)*k;
+      const arc=Math.sin(k*Math.PI)*2.2;
+      bobber.position.set(bx, castFrom.y+(0-castFrom.y)*k+arc, bz);
+      if(k>=1){ spawnRipple(new THREE.Vector3(CAST.x,0,CAST.z)); startWait(); }
+    } else {
+      const wh=waveHeight(bx,bz,t);
+      let dip=0;
+      if(state===S.BITE){ dip=-0.18-0.12*Math.abs(Math.sin((now-biteStart)*0.02)); }
+      bobber.position.set(bx, wh+dip+0.02, bz);
+      bobber.rotation.z=Math.sin(t*2)*0.06;
+    }
+    // 釣線
+    camera.updateMatrixWorld();
+    tip.copy(rodTipLocal).applyMatrix4(rod.matrixWorld);
+    const mid=tip.clone().lerp(bobber.position,0.5); mid.y-=0.5;
+    lineGeo.setFromPoints([tip,mid,bobber.position]);
+  }
+
+  // 狀態推進
+  if(state===S.WAITING && now>=biteAt) startBite();
+  if(state===S.BITE){
+    const prog=Math.min(100,(now-biteStart)/SWEEP*100);
+    elMarker.style.left=prog+'%';
+    if(now-biteStart>=SWEEP){ endBite(); fail('魚兒掙脫了，下次抓準時機'); }
+  }
+
+  // 漣漪
+  for(let i=ripples.length-1;i>=0;i--){
+    const r=ripples[i]; r.userData.t+=dt;
+    const s=1+r.userData.t*4; r.scale.set(s,s,s);
+    r.material.opacity=Math.max(0,0.7-r.userData.t*0.9);
+    if(r.userData.t>0.8){ scene.remove(r); ripples.splice(i,1); }
+  }
+
+  renderer.render(scene,camera);
+
+  if(pActive && pFish){ pFish.rotation.y+=dt*0.7; pRenderer.render(pScene,pCam); }
+}
+
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+
+/* =========================================================================
+   10. 啟動
+   ========================================================================= */
+load(); updateHUD();
+document.getElementById('loading').style.display='none';
+animate();
+
+const introEl=document.getElementById('intro');
+function startGame(){
+  if(state!==S.LOCK) return;
+  sgCalls++;
+  introEl.classList.add('hide');
+  state=S.READY;                       // 先進入可拋竿狀態
+  try{ audio(); }catch(e){}            // 音訊失敗也不擋遊戲
+  setHint('🎣 點擊或按 <b>空白鍵</b> 拋竿<small>面向這片風光明媚的合流，靜待魚訊</small>');
+}
+document.getElementById('btnStart').onclick=startGame;
+introEl.addEventListener('pointerdown',startGame); // 點開場任何處皆可開始
+</script>
+</body>
+</html>
