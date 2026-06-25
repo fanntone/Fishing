@@ -176,10 +176,22 @@
     .introcard .startbtn{ padding:14px 36px; font-size:16px; }
     .introcard .keys{ font-size:12px; padding:0 16px; }
   }
+  @keyframes victory-pop {
+    0% { transform: scale(0.6); opacity: 0; }
+    100% { transform: scale(1.0); opacity: 1; }
+  }
 </style>
 </head>
 <body>
   <canvas id="scene"></canvas>
+
+  <div id="victory-banner" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:28;pointer-events:none;background:radial-gradient(circle, rgba(0,0,0,0) 30%, rgba(0,0,0,0.55) 100%)">
+    <div style="text-align:center;animation:victory-pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)">
+      <div id="victory-title" style="font-size:46px;font-weight:900;color:#ffe27a;text-shadow:0 4px 14px rgba(0,0,0,0.6);letter-spacing:8px;margin-bottom:12px">成功釣獲！</div>
+      <div id="victory-subtitle" style="font-size:22px;font-weight:bold;color:#ffffff;text-shadow:0 2px 8px rgba(0,0,0,0.6);letter-spacing:2px">獲得了珍貴的漁獲</div>
+    </div>
+  </div>
+
 
   <div id="topbar" class="hud">
     <div class="chip"><span class="ic">🪙</span><b id="coins">0</b> 円</div>
@@ -702,9 +714,34 @@ const waterMat=new THREE.ShaderMaterial({
       col=mix(col,uHorizon,smoothstep(60.0,320.0,d));  // 與霧/地平線融合
       gl_FragColor=vec4(col,1.0); }`,
 });
-// 大地：鋪滿全場的亮綠草地（動森風）
-const ground=new THREE.Mesh(new THREE.PlaneGeometry(700,700), toonMat('#7ec84a'));
+// 大地：暗褐色的河床
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(700,700), toonMat('#4a3b2c'));
 ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; scene.add(ground);
+
+// 建立 elevated cliff banks (動森風格山崖)
+const grassMat = toonMat('#7ec84a'); // 亮綠草地
+const soilMat = toonMat('#8f6239'); // 溫慢泥土崖壁
+// 崖壁箱體材質陣列: 頂面為草地，側邊為泥土
+const cliffMats = [soilMat, soilMat, grassMat, soilMat, soilMat, soilMat];
+
+// 1. 主岸邊 (Z >= 2, 頂面高 Y = 1.5, 厚度 1.5, Z 寬 50)
+const shoreBank = new THREE.Mesh(new THREE.BoxGeometry(200, 1.5, 50), cliffMats);
+shoreBank.position.set(0, 0.75, 27); // 頂面高度為 1.5，前緣在 Z = 2
+shoreBank.receiveShadow = true; shoreBank.castShadow = true;
+scene.add(shoreBank);
+
+// 2. 左側山崖突出部 (河道彎曲效果)
+const leftCliff = new THREE.Mesh(new THREE.BoxGeometry(30, 1.5, 40), cliffMats);
+leftCliff.position.set(-15, 0.75, -15);
+leftCliff.receiveShadow = true; leftCliff.castShadow = true;
+scene.add(leftCliff);
+
+// 3. 右側山崖突出部 (河道彎曲效果)
+const rightCliff = new THREE.Mesh(new THREE.BoxGeometry(35, 1.5, 30), cliffMats);
+rightCliff.position.set(17.5, 0.75, -35);
+rightCliff.receiveShadow = true; rightCliff.castShadow = true;
+scene.add(rightCliff);
+
 // 前方河水（一條帶狀水域；近邊 z≈2，遠邊 z≈-56）
 const waterGeo=new THREE.PlaneGeometry(200,58,80,40);
 const water=new THREE.Mesh(waterGeo,waterMat);
@@ -716,7 +753,7 @@ function waveHeight(x,z,t){ return Math.sin(x*0.6+t*1.1)*0.05+Math.sin(z*0.5-t*0
 // --- 草地裝飾 ---
 function smoothMat(c){ return toonMat(c); }
 const FLOWER_COLORS=['#ef6f8e','#f4c145','#ffffff','#d56fef','#ff8a5b','#7fd0ff'];
-function makeFlower(x,z){
+function makeFlower(x,y,z){
   const g=new THREE.Group(); const n=2+(Math.random()*3|0);
   for(let i=0;i<n;i++){
     const px=(Math.random()-0.5)*0.6, pz=(Math.random()-0.5)*0.6, hh=0.22+Math.random()*0.16;
@@ -725,15 +762,15 @@ function makeFlower(x,z){
     const head=new THREE.Mesh(new THREE.SphereGeometry(0.06,8,7),toonMat(FLOWER_COLORS[FLOWER_COLORS.length*Math.random()|0]));
     head.position.set(px,hh+0.03,pz); head.scale.y=0.65; g.add(head);
   }
-  g.position.set(x,0,z); return g;
+  g.position.set(x,y,z); return g;
 }
-function makeBush(x,z,s){
+function makeBush(x,y,z,s){
   const b=new THREE.Mesh(new THREE.IcosahedronGeometry(0.5*s,2),toonMat('#6fa84f'));
-  b.scale.y=0.7; b.position.set(x,0.3*s,z); addOutline(b); return b;
+  b.scale.y=0.7; b.position.set(x,y+0.3*s,z); addOutline(b); return b;
 }
-function makeRock(x,z,s){
+function makeRock(x,y,z,s){
   const r=new THREE.Mesh(new THREE.IcosahedronGeometry(0.4*s,1),toonMat('#9aa0a6'));
-  r.scale.set(1,0.68,0.85); r.position.set(x,0.16*s,z); r.rotation.set(Math.random()*3,Math.random()*3,Math.random()*3);
+  r.scale.set(1,0.68,0.85); r.position.set(x,y+0.16*s,z); r.rotation.set(Math.random()*3,Math.random()*3,Math.random()*3);
   addOutline(r); return r;
 }
 function makeLily(x,z){
@@ -770,18 +807,71 @@ function makeReed(x,y,z){
   g.position.set(x,y,z); return g;
 }
 // 散佈樹木（近岸兩側 + 對岸）、灌木、石頭、花、蘆葦、睡蓮
-const farFromAngler=(x,z)=> Math.hypot(x-(-0.8), z-4)>2.2;
-for(let i=0;i<24;i++){
-  const far=Math.random()<0.5;
-  const z=far ? -60-Math.random()*95 : 6+Math.random()*16;
-  const x=(Math.random()<0.5?-1:1)*(13+Math.random()*45);
-  scene.add(makeTree(x,0,z,1+Math.random()*1.3));
+// 高度對照函數 (動森山崖區塊高度)
+function getLandHeight(x, z) {
+  if (z >= 2) return 1.5;
+  if (x >= -30 && x <= 0 && z >= -35 && z <= 5) return 1.5;
+  if (x >= 0 && x <= 35 && z >= -50 && z <= -20) return 1.5;
+  if (z <= -56) return 1.5;
+  return 0; // 河道水面下
 }
-for(let i=0;i<14;i++){ const x=-55+Math.random()*110, z=4+Math.random()*16; if(farFromAngler(x,z)) scene.add(makeBush(x,z,0.7+Math.random()*0.8)); }
-for(let i=0;i<12;i++){ const x=-55+Math.random()*110, z=3+Math.random()*16; if(farFromAngler(x,z)) scene.add(makeRock(x,z,0.6+Math.random()*0.7)); }
-for(let i=0;i<34;i++){ const x=-58+Math.random()*116, z=3+Math.random()*18; if(farFromAngler(x,z)) scene.add(makeFlower(x,z)); }
-for(let i=0;i<20;i++){ const x=(Math.random()<0.5?-1:1)*(7+Math.random()*70); scene.add(makeReed(x,0,(Math.random()<0.5?2.5:-55)+(Math.random()-0.5)*3)); }
-for(let i=0;i<10;i++) scene.add(makeLily((Math.random()-0.5)*80,-3-Math.random()*44));
+
+const farFromAngler=(x,z)=> Math.hypot(x-(-0.8), z-4)>2.2;
+
+// 在高地上散佈樹木 (包含紅蘋果)
+for(let i=0;i<38;i++){
+  const z = -140 + Math.random() * 155;
+  const x = -60 + Math.random() * 120;
+  const yh = getLandHeight(x, z);
+  if (yh > 0 && farFromAngler(x, z)) {
+    scene.add(makeTree(x, yh, z, 1+Math.random()*1.3));
+  }
+}
+// 在高地上散佈灌木
+for(let i=0;i<22;i++){
+  const x = -55 + Math.random() * 110;
+  const z = -140 + Math.random() * 155;
+  const yh = getLandHeight(x, z);
+  if (yh > 0 && farFromAngler(x, z)) {
+    scene.add(makeBush(x, yh, z, 0.7+Math.random()*0.8));
+  }
+}
+// 在高地上散佈岩石
+for(let i=0;i<16;i++){
+  const x = -55 + Math.random() * 110;
+  const z = -140 + Math.random() * 155;
+  const yh = getLandHeight(x, z);
+  if (yh > 0 && farFromAngler(x, z)) {
+    scene.add(makeRock(x, yh, z, 0.6+Math.random()*0.7));
+  }
+}
+// 在高地上散佈小花
+for(let i=0;i<64;i++){
+  const x = -58 + Math.random() * 116;
+  const z = -140 + Math.random() * 155;
+  const yh = getLandHeight(x, z);
+  if (yh > 0 && farFromAngler(x, z)) {
+    scene.add(makeFlower(x, yh, z));
+  }
+}
+// 在河道邊緣水面高度散佈蘆葦
+for(let i=0;i<26;i++){
+  const x = (Math.random() < 0.5 ? -1 : 1) * (7 + Math.random() * 70);
+  const z = -55 + Math.random() * 57;
+  const yh = getLandHeight(x, z);
+  if (yh === 0) { // 必須在河床/水域
+    scene.add(makeReed(x, WATER_Y, z));
+  }
+}
+// 在水面散佈睡蓮
+for(let i=0;i<14;i++) {
+  const x = -40 + Math.random() * 80;
+  const z = -50 + Math.random() * 48;
+  const yh = getLandHeight(x, z);
+  if (yh === 0) {
+    scene.add(makeLily(x, z));
+  }
+}
 
 // --- 遠山 ＋ 合流中島 ---
 function makeHill(x,z,s,c){
@@ -885,26 +975,75 @@ function makeAngler(){
   return a;
 }
 const angler=makeAngler();
-const ANGLER_Y=0;
+const ANGLER_Y=1.5;
 angler.position.set(-1,ANGLER_Y,4); angler.rotation.y=Math.PI-0.35;  // 與模型同朝向
 scene.add(angler);
 
 // --- 釣竿（接到角色右手）---
-const rod=new THREE.Group();
-const ROD_LEN=3.0;
-const rodGeo=new THREE.CylinderGeometry(0.018,0.045,ROD_LEN,12);
-rodGeo.translate(0,ROD_LEN/2,0);
-const rodMesh=new THREE.Mesh(rodGeo,toonMat('#4a3b30'));
-addOutline(rodMesh); rod.add(rodMesh);
-const handle=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.065,0.5,12),toonMat('#2b2b2e'));
-handle.position.y=0.2; rod.add(handle);
-const reel=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,0.06,16),toonMat('#caa24a'));
-reel.rotation.x=Math.PI/2; reel.position.set(0.08,0.55,0.06); rod.add(reel);
-rod.traverse(o=>{ if(o.isMesh && !o.userData.isOutline) o.castShadow=true; });
+function createBendingRod() {
+  const rGroup = new THREE.Group();
+  
+  // 握把
+  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.065, 0.5, 12), toonMat('#2b2b2e'));
+  handle.position.y = 0.2;
+  rGroup.add(handle);
+  
+  // 捲線器
+  const reel = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.06, 16), toonMat('#caa24a'));
+  reel.rotation.x = Math.PI / 2;
+  reel.position.set(0.08, 0.55, 0.06);
+  rGroup.add(reel);
+  
+  // 釣竿節段（5段骨架，由粗到細）
+  const segments = [];
+  const segLength = 0.52;
+  const numSegs = 5;
+  
+  let parentNode = rGroup;
+  let prevY = 0.45;
+  
+  for (let i = 0; i < numSegs; i++) {
+    const segGroup = new THREE.Group();
+    segGroup.position.set(0, prevY, 0);
+    parentNode.add(segGroup);
+    segments.push(segGroup);
+    
+    const rBase = 0.042 * (1 - i / numSegs * 0.65);
+    const rTop = 0.042 * (1 - (i + 1) / numSegs * 0.65);
+    const segGeo = new THREE.CylinderGeometry(rTop, rBase, segLength, 8);
+    segGeo.translate(0, segLength / 2, 0);
+    
+    const segMesh = new THREE.Mesh(segGeo, toonMat('#4a3b30'));
+    segGroup.add(segMesh);
+    
+    parentNode = segGroup;
+    prevY = segLength;
+  }
+  
+  // 竿尖定位節點
+  const tipNode = new THREE.Group();
+  tipNode.position.set(0, segLength, 0);
+  parentNode.add(tipNode);
+  
+  rGroup.userData.segments = segments;
+  rGroup.userData.tipNode = tipNode;
+  rGroup.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  return rGroup;
+}
+
+const rod = createBendingRod();
 const ROD_BASE_X=1.05, ROD_BASE_Z=0.1;
 rod.position.set(0.5,1.2,-0.6); rod.rotation.set(ROD_BASE_X,0,ROD_BASE_Z);
 angler.add(rod);
-const rodTipLocal=new THREE.Vector3(0,ROD_LEN,0);
+
+const rodTipLocal = new THREE.Vector3();
+const getRodTipPos = (outVec) => {
+  if (rod && rod.userData.tipNode) {
+    rod.userData.tipNode.getWorldPosition(outVec);
+  } else {
+    outVec.set(0, 3.0, 0);
+  }
+};
 
 // --- 載入專業 CC0 可愛角色模型（RobotExpressive, by Tomás Laulhé），取代手拼角色 ---
 let mixer=null, robotActions=null, robotModel=null;
@@ -969,10 +1108,32 @@ function fitCharacterToAngler(model){
     prepareLoadedCharacter(model);
     const fit=fitCharacterToAngler(model);
     scene.add(model); robotModel=model;
+
+    // Attach rod to LowerArmR (right forearm bone)
+    const lowerArm = model.getObjectByName('LowerArmR');
+    if (lowerArm) {
+      lowerArm.add(rod);
+      model.updateWorldMatrix(true, true);
+      const worldScale = new THREE.Vector3();
+      lowerArm.getWorldScale(worldScale);
+      if (worldScale.x > 0) {
+        rod.scale.set(1 / worldScale.x, 1 / worldScale.y, 1 / worldScale.z);
+      } else {
+        rod.scale.setScalar(1 / (fit.scale * 51.5));
+      }
+      rod.position.set(0, 0.0138, 0); // Offset to hand joint position
+    }
+
     angler.children.forEach(c=>{ if(c!==rod) c.visible=false; });   // 藏手拼身體、保留釣竿
     console.log('[model] size=',fit.size,'scale=',fit.scale,'footY=',fit.footY,'pos=',model.position);
     toast('角色模型已載入 ✓');
     mixer=new THREE.AnimationMixer(model);
+    // 從所有動畫片段中移除右臂骨骼軌道，讓我們能手動控制右手持竿姿態
+    for(const cl of gltf.animations){
+      cl.tracks = cl.tracks.filter(track =>
+        !track.name.includes('UpperArmR') && !track.name.includes('LowerArmR')
+      );
+    }
     robotActions={}; for(const cl of gltf.animations) robotActions[cl.name]=mixer.clipAction(cl);
     (robotActions['Idle']||mixer.clipAction(gltf.animations[0])).play();
   }catch(e){ console.warn('角色模型載入失敗，沿用內建角色：',e); }
@@ -994,13 +1155,29 @@ const bBot=new THREE.Mesh(new THREE.SphereGeometry(0.13,16,16,0,6.28,Math.PI/2,M
 const bAnt=new THREE.Mesh(new THREE.CylinderGeometry(0.009,0.009,0.32,6), toonMat('#e8553e'));
 addOutline(bTop); addOutline(bBot);
 bAnt.position.y=0.22; bobber.add(bTop); bobber.add(bBot); bobber.add(bAnt);
-const CAST=new THREE.Vector3(0,0,-9);
+const CAST=new THREE.Vector3(3,0,-12);
 bobber.position.copy(CAST); bobber.visible=false; scene.add(bobber);
 
 // --- 釣線 ---
+const LINE_SEGS = 24;
+const linePoints = [];
+for (let i = 0; i <= LINE_SEGS; i++) linePoints.push(new THREE.Vector3());
 const lineMat=new THREE.LineBasicMaterial({color:'#f3f5f4',transparent:true,opacity:0.7});
-const lineGeo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(),new THREE.Vector3()]);
+const lineGeo=new THREE.BufferGeometry().setFromPoints(linePoints);
 const fishLine=new THREE.Line(lineGeo,lineMat); fishLine.visible=false; scene.add(fishLine);
+
+function updateLineCurve(start, end, control) {
+  const pts = [];
+  for (let i = 0; i <= LINE_SEGS; i++) {
+    const t = i / LINE_SEGS;
+    const p = new THREE.Vector3();
+    p.x = (1 - t) * (1 - t) * start.x + 2 * (1 - t) * t * control.x + t * t * end.x;
+    p.y = (1 - t) * (1 - t) * start.y + 2 * (1 - t) * t * control.y + t * t * end.y;
+    p.z = (1 - t) * (1 - t) * start.z + 2 * (1 - t) * t * control.z + t * t * end.z;
+    pts.push(p);
+  }
+  lineGeo.setFromPoints(pts);
+}
 
 // --- 漣漪 ---
 const ripples=[];
@@ -1101,7 +1278,7 @@ function renderMain(){
 /* =========================================================================
    5. 遊戲狀態機
    ========================================================================= */
-const S={ READY:'ready', CASTING:'casting', WAITING:'waiting', BITE:'bite', CATCH:'catch', RESULT:'result', LOCK:'lock' };
+const S={ READY:'ready', CASTING:'casting', WAITING:'waiting', BITE:'bite', CATCH:'catch', CELEBRATE:'celebrate', RESULT:'result', LOCK:'lock' };
 let state=S.LOCK;
 const clock=new THREE.Clock();
 let now=0;
@@ -1247,6 +1424,7 @@ function closeResult(keep){
   }
   pendingCatch=null;
   state=S.READY;
+  if (rod) rod.visible = true; // 恢復釣竿顯示
   setHint('點擊或按 <b>空白鍵</b> 拋竿<small>面向這片風光明媚的合流，靜待魚訊</small>');
 }
 
@@ -1273,11 +1451,11 @@ addEventListener('pointerdown',e=>{
   onAction();
 });
 
-// 滑鼠環顧
+// 滑鼠環顧（加大靈敏度，讓玩家能看到浮標方向）
 let yaw=0,pitch=0,tYaw=0,tPitch=0;
 addEventListener('pointermove',e=>{
-  tYaw=-(e.clientX/innerWidth-0.5)*0.5;
-  tPitch=-(e.clientY/innerHeight-0.5)*0.18;
+  tYaw=-(e.clientX/innerWidth-0.5)*1.2;
+  tPitch=-(e.clientY/innerHeight-0.5)*0.6;
 });
 
 document.getElementById('btnRelease').onclick=()=>closeResult(false);
@@ -1356,6 +1534,8 @@ function animate(){
   const t=clock.elapsedTime;
   if(mixer) mixer.update(dt);
 
+
+
   // FPS / GPU 診斷
   _fr++; _ft+=dt;
   if(_ft>=1.0){ _fps=Math.round(_fr/_ft); _fr=0; _ft=0;
@@ -1368,11 +1548,41 @@ function animate(){
   for(const c of clouds){ c.position.x+=dt*c.userData.drift;
     if(c.position.x>140) c.position.x=-140; }
 
-  // 環顧（平滑）
-  // 相機在水面前方、看回岸上角色（看得到正臉）
-  const px=tYaw*1.4, py=tPitch*1.6;
-  camera.position.set(7+Math.sin(t*0.25)*0.3+px, 3.4+Math.sin(t*0.4)*0.1-py, -10);
-  camera.lookAt(-1.6,1.55,3);
+  // 環顧（平滑）：滑鼠控制相機位移與看點方向
+  const px=tYaw*3.0, py=tPitch*3.0;
+
+  // 根據狀態平滑過渡相機位置與看點
+  if (!window.targetCamPos) window.targetCamPos = new THREE.Vector3();
+  if (!window.targetLookAt) window.targetLookAt = new THREE.Vector3();
+  if (!window.currentLookAt) window.currentLookAt = new THREE.Vector3(-1.0, 1.0, 0);
+
+  if (state === S.CELEBRATE || state === S.RESULT) {
+    // 勝利拉近特寫：正面偏側角，能同時看到角色全身、舉起的釣竿、和懸掛的魚
+    window.targetCamPos.set(-4.5, 3.2, 0.5);
+    window.targetLookAt.set(-1.0, 2.0, 3.8);
+  } else {
+    // 釣魚狀態：稍高的俯瞰視角，能同時看到角色與浮標
+    const targetZ = (state === S.BITE) ? 6.0 : 8.0;
+    window.targetCamPos.set(-2 + px, 5.5 - py, targetZ);
+    
+    if (bobber.visible) {
+      // 動態混合看向浮標 (60% 偏向浮標)
+      window.targetLookAt.set(
+        -1.0 + (bobber.position.x - (-1.0)) * 0.6 + px * 0.5,
+        1.0 + (bobber.position.y - 1.0) * 0.4 + py * 0.3,
+        4.0 + (bobber.position.z - 4.0) * 0.6
+      );
+    } else {
+      window.targetLookAt.set(-1.0 + px * 0.5, 1.0 + py * 0.3, 0);
+    }
+  }
+
+  // 幀率無關的 exponential decay lerp 係數
+  const camPosDecay = (state === S.CELEBRATE) ? 6 : 8;
+  const camLookDecay = (state === S.CELEBRATE) ? 6 : 8;
+  camera.position.lerp(window.targetCamPos, 1 - Math.exp(-camPosDecay * dt));
+  window.currentLookAt.lerp(window.targetLookAt, 1 - Math.exp(-camLookDecay * dt));
+  camera.lookAt(window.currentLookAt);
 
   // 甩竿動作：後拉蓄力 → 前甩 → 回正
   let swing=0;
@@ -1384,8 +1594,51 @@ function animate(){
   }
   let twitch=0;
   if(state===S.BITE) twitch=Math.sin(now*0.025)*0.05;       // 咬鉤抽動
-  rod.rotation.x=ROD_BASE_X+swing+twitch+Math.sin(t*1.4)*0.012;
-  rod.rotation.z=ROD_BASE_Z+Math.sin(t*1.1)*0.01;
+  
+  if (robotModel) {
+    robotModel.updateWorldMatrix(true, true);
+  }
+
+  if (!robotModel) {
+    rod.rotation.x=ROD_BASE_X+swing+twitch+Math.sin(t*1.4)*0.012;
+    rod.rotation.z=ROD_BASE_Z+Math.sin(t*1.1)*0.01;
+  } else {
+    // Model bone socket override for active fishing
+    // 注意：AnimationMixer 使用 quaternion 更新骨骼，
+    // 我們必須在設定 Euler rotation 後同步更新 quaternion，否則動畫會覆蓋我們的值
+    const ua = robotModel.getObjectByName('UpperArmR');
+    const la = robotModel.getObjectByName('LowerArmR');
+    if (state !== S.CATCH && state !== S.RESULT && state !== S.CELEBRATE) {
+      // 正常釣魚姿態：右臂微舉握住釣竿，竿尖朝前上方
+      if (ua) { ua.rotation.set(-0.95 + swing * 0.7 + twitch, -0.9, 0.25 + swing * 0.1); ua.quaternion.setFromEuler(ua.rotation); }
+      if (la) { la.rotation.set(0.4, 0.0, 0.0); la.quaternion.setFromEuler(la.rotation); }
+      if (rod) rod.rotation.set(1.5 + swing * 0.3, 0.0, 0.0);
+    } else if (state === S.CELEBRATE) {
+      // 慶祝特寫時高舉釣竿，讓魚垂懸在前方
+      if (ua) { ua.rotation.set(-1.2, -0.9, 0.25); ua.quaternion.setFromEuler(ua.rotation); }
+      if (la) { la.rotation.set(0.3, 0.0, 0.0); la.quaternion.setFromEuler(la.rotation); }
+      if (rod) rod.rotation.set(1.3, 0.0, 0.0);
+    } else {
+      if (rod) rod.rotation.set(1.5, 0.0, 0.0);
+    }
+  }
+
+  // 釣竿彎曲動畫
+  let bend = 0;
+  if (state === S.CASTING) {
+    bend = swing * 0.6;
+  } else if (state === S.BITE) {
+    bend = twitch * 1.2;
+  } else if (state === S.CELEBRATE) {
+    bend = 0.55 + Math.sin(t * 4) * 0.05;
+  }
+  const segments = rod.userData.segments;
+  if (segments) {
+    const anglePerSeg = bend / segments.length;
+    for (let i = 0; i < segments.length; i++) {
+      segments[i].rotation.x = anglePerSeg;
+    }
+  }
 
   // 點景魚悠游
   for(const m of ambient){
@@ -1417,9 +1670,9 @@ function animate(){
     }
     // 釣線
     camera.updateMatrixWorld();
-    tip.copy(rodTipLocal).applyMatrix4(rod.matrixWorld);
-    const mid=tip.clone().lerp(bobber.position,0.5); mid.y-=0.5;
-    lineGeo.setFromPoints([tip,mid,bobber.position]);
+    getRodTipPos(tip);
+    const mid=tip.clone().lerp(bobber.position,0.5); mid.y-=0.38;
+    updateLineCurve(tip, bobber.position, mid);
   }
 
   // 魚影游向浮標（WAITING）→ 抵達即咬鉤
@@ -1442,16 +1695,89 @@ function animate(){
   if(state===S.CATCH && leapFish){
     const k=(now-leapStart)/850;
     if(k>=1){
-      scene.remove(leapFish); leapFish=null; fishLine.visible=false;
-      showResult(pendingCatch.sp,pendingCatch.c,pendingCatch.value,pendingCatch.grade);
-      state=S.RESULT;
+      // 進入慶祝狀態 (CELEBRATE)
+      state=S.CELEBRATE;
+      window.celebrateStart = now;
+
+      // 慶祝時釣竿保持顯示
+      if (rod) rod.visible = true;
+
+      // 將魚定位在竿尖下方垂懸處
+      const tip = new THREE.Vector3();
+      getRodTipPos(tip);
+      const fishPos = tip.clone();
+      fishPos.y -= 0.8;
+      fishPos.z += 0.15;
+      leapFish.position.copy(fishPos);
+      
+      // 更新釣線，使其拉直連接到懸掛的魚
+      const mid = tip.clone().lerp(fishPos, 0.5);
+      updateLineCurve(tip, fishPos, mid);
+
+      // 顯示獲得橫幅
+      const vb = document.getElementById('victory-banner');
+      if (vb && pendingCatch) {
+        document.getElementById('victory-subtitle').textContent = `成功釣獲 ${pendingCatch.sp.zh} (${pendingCatch.c.len} cm)！`;
+        vb.style.display = 'flex';
+      }
+
+      sfx('win');
     } else {
       const p=leapFrom.clone().lerp(leapTo,k); p.y+=Math.sin(k*Math.PI)*1.9;
       leapFish.position.copy(p);
       leapFish.rotation.z=Math.PI*0.5-k*2.2; leapFish.rotation.y+=0.3;
       if(leapFish.userData.tail) leapFish.userData.tail.rotation.y=Math.sin(t*22)*0.7;
-      camera.updateMatrixWorld(); tip.copy(rodTipLocal).applyMatrix4(rod.matrixWorld);
-      lineGeo.setFromPoints([tip, tip.clone().lerp(p,0.5), p]);
+      camera.updateMatrixWorld();
+      getRodTipPos(tip);
+      const mid = tip.clone().lerp(p, 0.5);
+      mid.y -= 0.2;
+      updateLineCurve(tip, p, mid);
+    }
+  }
+
+  // 勝利慶祝階段邏輯 (CELEBRATE)
+  if (state === S.CELEBRATE) {
+    const elapsed = now - window.celebrateStart;
+
+    // 取得即時竿尖世界位置，更新垂懸魚與拉直釣線 (使魚活靈活現扭動)
+    camera.updateMatrixWorld();
+    getRodTipPos(tip);
+    
+    const fishPos = tip.clone();
+    fishPos.y -= 0.8 + Math.sin(t * 4) * 0.04; // 垂直上下微彈
+    fishPos.z += 0.15 + Math.cos(t * 3) * 0.03; // 前後微晃
+    
+    if (leapFish) {
+      leapFish.position.copy(fishPos);
+      // 面向鏡頭晃動 wiggling
+      leapFish.rotation.set(0.2, t * 1.5, Math.sin(t * 15) * 0.25);
+      if (leapFish.userData.tail) {
+        leapFish.userData.tail.rotation.y = Math.sin(t * 26) * 0.6;
+      }
+    }
+    
+    // 更新釣線，使用波動曲線模擬晃動
+    const mid = tip.clone().lerp(fishPos, 0.5);
+    mid.x += Math.sin(t * 8) * 0.04;
+    mid.z += Math.cos(t * 6) * 0.04;
+    updateLineCurve(tip, fishPos, mid);
+
+    // 慶祝持續 3 秒後自動彈出結果卡
+    if (elapsed >= 3000 && pendingCatch) {
+      // 移除垂懸的魚與隱藏釣線
+      if (leapFish) {
+        scene.remove(leapFish);
+        leapFish = null;
+      }
+      fishLine.visible = false;
+
+      // 隱藏橫幅
+      const vb = document.getElementById('victory-banner');
+      if (vb) vb.style.display = 'none';
+
+      // 彈出統計結果
+      showResult(pendingCatch.sp, pendingCatch.c, pendingCatch.value, pendingCatch.grade);
+      state = S.RESULT;
     }
   }
   // 水花
