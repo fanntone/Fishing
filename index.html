@@ -14,11 +14,12 @@
   html,body{ margin:0; height:100%; overflow:hidden;
     font-family:"Hiragino Sans","Yu Gothic UI","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
     color:var(--ink); background:#cfe8f2; -webkit-font-smoothing:antialiased; }
-  #scene{ position:fixed; inset:0; display:block; }
+  #scene{ position:fixed; inset:0; display:block; touch-action:none; user-select:none; -webkit-user-select:none; }
   .hud{ position:fixed; z-index:10; }
 
-  /* 頂部資訊列 */
-  #topbar{ top:16px; left:50%; transform:translateX(-50%); display:flex; gap:10px; }
+  /* 頂部資訊列（純資訊：不攔截點擊，讓整個畫面都能輕觸拋竿） */
+  #topbar{ top:16px; left:50%; transform:translateX(-50%); display:flex; gap:10px;
+    flex-wrap:wrap; justify-content:center; max-width:calc(100vw - 20px); pointer-events:none; }
   .chip{ background:var(--panel); backdrop-filter:blur(8px); border:1px solid var(--line);
     border-radius:999px; padding:8px 18px; font-size:14px; letter-spacing:.5px;
     box-shadow:0 4px 18px rgba(60,90,110,.10); display:flex; align-items:center; gap:8px; }
@@ -28,13 +29,15 @@
   /* 中央提示 */
   #hint{ bottom:46px; left:50%; transform:translateX(-50%); text-align:center;
     background:var(--panel); backdrop-filter:blur(8px); border:1px solid var(--line);
-    border-radius:16px; padding:12px 26px; font-size:16px; letter-spacing:1px;
-    box-shadow:0 6px 22px rgba(60,90,110,.12); transition:opacity .3s; }
+    border-radius:16px; padding:12px 26px; font-size:16px; letter-spacing:1px; max-width:92vw;
+    box-shadow:0 6px 22px rgba(60,90,110,.12); transition:opacity .3s; pointer-events:none; }
   #hint small{ display:block; color:var(--ink-soft); font-size:12px; margin-top:3px; letter-spacing:.5px; }
 
   /* 起竿時機條 */
-  #timing{ bottom:120px; left:50%; transform:translateX(-50%); width:min(420px,80vw);
-    display:none; text-align:center; }
+  #timing{ bottom:150px; left:50%; transform:translateX(-50%); width:min(420px,86vw);
+    display:none; text-align:center; pointer-events:none;
+    background:rgba(255,255,255,.78); backdrop-filter:blur(8px); border:1px solid var(--line);
+    border-radius:18px; padding:14px 18px 12px; box-shadow:0 8px 26px rgba(60,90,110,.16); }
   #timing.show{ display:block; animation:pop .25s ease; }
   @keyframes pop{ from{ transform:translateX(-50%) scale(.9); opacity:0;} to{ transform:translateX(-50%) scale(1); opacity:1;} }
   #timing .label{ font-size:20px; font-weight:700; color:#e8553e; letter-spacing:3px;
@@ -54,8 +57,8 @@
   #result{ inset:0; display:none; align-items:center; justify-content:center;
     background:rgba(30,50,60,.28); backdrop-filter:blur(3px); z-index:30; }
   #result.show{ display:flex; }
-  .card{ width:min(540px,92vw); background:var(--paper); border-radius:24px; overflow:hidden;
-    box-shadow:0 24px 70px rgba(20,40,55,.35); border:1px solid rgba(255,255,255,.7);
+  .card{ width:min(540px,92vw); max-height:92vh; overflow-y:auto; background:var(--paper);
+    border-radius:24px; box-shadow:0 24px 70px rgba(20,40,55,.35); border:1px solid rgba(255,255,255,.7);
     animation:rise .35s cubic-bezier(.2,.9,.3,1.2); }
   @keyframes rise{ from{ transform:translateY(24px) scale(.96); opacity:0;} to{ transform:none; opacity:1;} }
   .card .head{ padding:18px 24px 12px; text-align:center; position:relative; }
@@ -136,10 +139,43 @@
   .introcard .keys{ margin-top:22px; color:#6b8a93; font-size:13px; letter-spacing:1px; line-height:2; }
   #loading{ position:fixed; bottom:30px; left:50%; transform:translateX(-50%); color:#5a7a83; font-size:13px; }
 
-  .toast{ position:fixed; bottom:120px; left:50%; transform:translateX(-50%) translateY(20px);
-    background:rgba(60,64,67,.92); color:#fff; padding:12px 26px; border-radius:14px; font-size:15px;
-    letter-spacing:2px; opacity:0; transition:.3s; z-index:25; pointer-events:none; }
+  .toast{ position:fixed; top:84px; left:50%; transform:translateX(-50%) translateY(-16px);
+    background:rgba(60,64,67,.92); color:#fff; padding:11px 24px; border-radius:14px; font-size:15px;
+    letter-spacing:2px; opacity:0; transition:.3s; z-index:25; pointer-events:none; max-width:90vw; }
   .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* ---- 手機／窄螢幕自適應 ---- */
+  @media (max-width:640px){
+    #topbar{ top:8px; gap:6px; }
+    .chip{ padding:6px 11px; font-size:12px; }
+    .chip .ic{ font-size:14px; }
+    #tools{ top:8px; right:8px; gap:8px; }
+    .toolbtn{ width:40px; height:40px; font-size:18px; border-radius:12px; }
+    #hint{ bottom:24px; font-size:14px; padding:10px 18px; }
+    #timing{ bottom:118px; }
+
+    .card .head{ padding:14px 16px 8px; }
+    .card .gradeBig{ font-size:22px; letter-spacing:4px; }
+    .card .body{ flex-direction:column; align-items:center; gap:12px; padding:6px 16px 14px; }
+    #previewWrap{ width:150px; flex:0 0 150px; }
+    #previewCanvas{ width:150px; height:150px; }
+    .info{ width:100%; }
+    .info .name{ font-size:21px; text-align:center; }
+    .info .ja{ text-align:center; }
+    .badge{ display:block; width:max-content; margin:8px auto 0; }
+    .desc{ margin:12px 16px 4px; font-size:12.5px; line-height:1.7; }
+    .card .foot{ padding:4px 16px 16px; }
+
+    .bookwrap{ width:96vw; height:88vh; }
+    .bookhead h2{ font-size:17px; letter-spacing:2px; }
+    .bookbody{ flex-direction:column; }
+    #bookGrid{ grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); padding:12px; }
+    .bookside{ width:auto; flex:0 0 auto; border-left:none; border-top:1px solid var(--line); max-height:40%; }
+
+    .introcard h1{ font-size:30px; letter-spacing:5px; }
+    .introcard .startbtn{ padding:14px 36px; font-size:16px; }
+    .introcard .keys{ font-size:12px; padding:0 16px; }
+  }
 </style>
 </head>
 <body>
@@ -288,12 +324,14 @@ const RARITY = [
 
 // 體型模板：len=長, depth=體高(Y), width=側扁(Z), tail=尾型, tailSize, dorsal/anal/pect=鰭大小
 const SHAPES = {
-  normal: { len:2.0, depth:0.42, width:0.16, tail:'forked',  tailSize:0.6,  dorsal:0.5,  anal:0.32, pect:0.32 },
-  slim:   { len:2.3, depth:0.30, width:0.12, tail:'forked',  tailSize:0.55, dorsal:0.4,  anal:0.28, pect:0.30 },
-  eel:    { len:3.6, depth:0.17, width:0.13, tail:'pointed', tailSize:0.2,  dorsal:0.9,  anal:0.5,  pect:0.16, ribbon:true },
-  flat:   { len:1.8, depth:0.50, width:0.07, tail:'round',   tailSize:0.34, dorsal:0.9,  anal:0.7,  pect:0.3,  flat:true },
-  round:  { len:1.45,depth:0.60, width:0.5,  tail:'fan',     tailSize:0.3,  dorsal:0.34, anal:0.3,  pect:0.4 },
-  deep:   { len:1.8, depth:0.62, width:0.16, tail:'forked',  tailSize:0.5,  dorsal:0.7,  anal:0.5,  pect:0.34 },
+  normal: { len:2.0, depth:0.42, width:0.30, tail:'forked',  tailSize:0.6,  dorsal:0.5,  anal:0.32, pect:0.32 },
+  slim:   { len:2.3, depth:0.30, width:0.22, tail:'forked',  tailSize:0.55, dorsal:0.4,  anal:0.28, pect:0.30 },
+  eel:    { len:3.6, depth:0.18, width:0.17, tail:'pointed', tailSize:0.2,  dorsal:0.9,  anal:0.5,  pect:0.16, ribbon:true },
+  flat:   { len:1.8, depth:0.50, width:0.14, tail:'round',   tailSize:0.34, dorsal:0.9,  anal:0.7,  pect:0.3,  flat:true },
+  round:  { len:1.45,depth:0.60, width:0.56, tail:'fan',     tailSize:0.3,  dorsal:0.34, anal:0.3,  pect:0.4 },
+  deep:   { len:1.8, depth:0.62, width:0.38, tail:'forked',  tailSize:0.5,  dorsal:0.7,  anal:0.5,  pect:0.34 },
+  shark:  { len:3.0, depth:0.36, width:0.30, tail:'crescent',tailSize:0.7,  dorsal:1.15, anal:0.3,  pect:0.55 },
+  tuna:   { len:2.4, depth:0.44, width:0.34, tail:'crescent',tailSize:0.8,  dorsal:0.5,  anal:0.4,  pect:0.4, finlets:true },
 };
 
 // 40 個家族 [中文, 日文(假名), 稀有度idx, 體長min, max(cm), 基準值, body色, 腹/鰭色, 鰭色, shape, 棲地, 食性, 季節, 趣聞]
@@ -413,16 +451,21 @@ function fishPattern(sp){
   return 'gradient';
 }
 
-// 體側剪影控制點（x:0尾→1頭, 半徑比例）
-const FISH_SIL=[[0,0.02],[0.07,0.13],[0.2,0.46],[0.4,0.86],[0.58,1.0],[0.78,0.84],[0.92,0.46],[1.0,0.16]];
-function fishSil(t){ for(let i=1;i<FISH_SIL.length;i++){ if(t<=FISH_SIL[i][0]){
-  const a=FISH_SIL[i-1],b=FISH_SIL[i],k=(t-a[0])/((b[0]-a[0])||1); return a[1]+(b[1]-a[1])*k; } } return 0.16; }
+// 體側剪影控制點（x:0尾→1頭, 半徑比例）— 大頭圓潤，較可愛
+const SIL_CUTE =[[0,0.03],[0.06,0.18],[0.16,0.54],[0.32,0.86],[0.5,1.0],[0.7,0.92],[0.86,0.66],[1.0,0.34]];
+const SIL_EEL  =[[0,0.07],[0.08,0.5],[0.3,0.74],[0.55,0.82],[0.8,0.74],[0.93,0.58],[1.0,0.42]];
+const SIL_ROUND=[[0,0.10],[0.1,0.55],[0.28,0.92],[0.48,1.0],[0.68,0.96],[0.86,0.66],[1.0,0.46]];
+function silAt(arr,t){ for(let i=1;i<arr.length;i++){ if(t<=arr[i][0]){
+  const a=arr[i-1],b=arr[i],k=(t-a[0])/((b[0]-a[0])||1); return a[1]+(b[1]-a[1])*k; } } return arr[arr.length-1][1]; }
+function fishHasWhiskers(n){ return /鯰|鰻|鱔|泥鰍|鯉|何氏|鱸鰻/.test(n); }
 
 function makeFishMesh(sp){
   const P=SHAPES[sp.shape]||SHAPES.normal;
   const g=new THREE.Group();
   const L=P.len, D=P.depth, W=P.width;
   const pattern=fishPattern(sp);
+  const SIL = sp.shape==='eel'?SIL_EEL : sp.shape==='round'?SIL_ROUND : SIL_CUTE;
+  const fishSil=(t)=>silAt(SIL,t);
 
   // 顏色（THREE.Color 已是線性，直接給 vertexColors）
   const cBody=new THREE.Color(sp.color1);
@@ -458,26 +501,26 @@ function makeFishMesh(sp){
   bodyGeo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
   bodyGeo.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
   bodyGeo.setIndex(idx); bodyGeo.computeVertexNormals();
-  g.add(new THREE.Mesh(bodyGeo,new THREE.MeshStandardMaterial({
-    vertexColors:true, roughness:0.4, metalness:0.06, envMapIntensity:0.75 })));
+  const bodyMesh=new THREE.Mesh(bodyGeo,new THREE.MeshStandardMaterial({ vertexColors:true, roughness:0.55, metalness:0.05, envMapIntensity:0.7 }));
+  g.add(bodyMesh);
   // 吻部封口（避免頭部開孔穿透）
   const snout=new THREE.Mesh(new THREE.SphereGeometry(0.17*D,12,10),
-    new THREE.MeshStandardMaterial({color:cBelly.clone().lerp(cBody,0.6),roughness:0.42,metalness:0.06,envMapIntensity:0.7}));
-  snout.position.set(L*0.5,0,0); snout.scale.set(0.7,1,1); g.add(snout);
+    toonMat(cBelly.clone().lerp(cBody,0.6)));
+  snout.position.set(L*0.5,0,0); snout.scale.set(0.7,1,1); addOutline(snout); g.add(snout);
 
-  const finMat=new THREE.MeshStandardMaterial({ color:sp.finColor, roughness:0.55, metalness:0,
-    side:THREE.DoubleSide, transparent:true, opacity:0.9, envMapIntensity:0.5 });
+  const finMat=toonMat(sp.finColor,{ side:THREE.DoubleSide, transparent:true, opacity:0.92 });
   const addFin=(shape,px=0,py=0,pz=0,rx=0,ry=0,rz=0)=>{
     const m=new THREE.Mesh(new THREE.ShapeGeometry(shape),finMat);
     m.position.set(px,py,pz); m.rotation.set(rx,ry,rz); g.add(m); return m;
   };
 
-  // 尾鰭（依尾型）
-  const th=D*1.3*(P.tailSize/0.5), tl=L*0.3*(P.tailSize/0.5), ts=new THREE.Shape();
+  // 尾鰭（依尾型）— 收進子群組以便擺尾動畫
+  const th=D*1.35*(P.tailSize/0.5), tl=L*0.32*(P.tailSize/0.5), ts=new THREE.Shape();
   if(P.tail==='forked'){ ts.moveTo(0,0); ts.lineTo(-tl,th); ts.lineTo(-tl*0.5,0); ts.lineTo(-tl,-th); ts.closePath(); }
   else if(P.tail==='pointed'){ ts.moveTo(0,0); ts.lineTo(-tl,th*0.45); ts.lineTo(-tl*1.2,0); ts.lineTo(-tl,-th*0.45); ts.closePath(); }
   else { ts.moveTo(0,0); for(let k=0;k<=8;k++){ const a=(-0.5+k/8)*Math.PI*0.92; ts.lineTo(-Math.cos(a)*tl, Math.sin(a)*th); } ts.closePath(); }
-  addFin(ts, -L*0.5);
+  const tailPivot=new THREE.Group(); tailPivot.position.set(-L*0.5,0,0);
+  const tailMesh=new THREE.Mesh(new THREE.ShapeGeometry(ts),finMat); tailPivot.add(tailMesh); g.add(tailPivot);
 
   // 背鰭 / 臀鰭
   if(P.dorsal>0){ const d=new THREE.Shape();
@@ -488,22 +531,55 @@ function makeFishMesh(sp){
     an.moveTo(x1,-D*0.72); an.lineTo(x2,-D*0.72); an.lineTo((x1+x2)/2,-D*(0.72+P.anal*0.7)); an.closePath();
     addFin(an); }
 
-  // 胸鰭（兩側）
+  // 胸鰭（兩側，會擺動）
+  const pects=[];
   for(const zs of [1,-1]){ const pf=new THREE.Shape();
     pf.moveTo(0,0); pf.lineTo(-L*0.17*P.pect/0.32, D*0.28); pf.lineTo(-L*0.15*P.pect/0.32,-D*0.16); pf.closePath();
-    addFin(pf, L*0.18, -D*0.12, zs*W*1.02, -0.3, zs*0.9, 0); }
+    pects.push(addFin(pf, L*0.18, -D*0.12, zs*W*1.02, -0.3, zs*0.9, 0)); }
 
-  // 眼睛
-  const eR=Math.max(0.045, D*0.17);
+  // 大眼睛（眼白＋瞳孔＋高光）→ 可愛感的關鍵
+  const eR=Math.max(0.07, D*0.30);
+  const eX=L*0.34, eY=D*0.24, eZ=Math.max(W, eR*0.4)*0.7 + eR*0.5;
   for(const zs of [1,-1]){
-    const e=new THREE.Mesh(new THREE.SphereGeometry(eR,14,12),
-      new THREE.MeshStandardMaterial({color:sp.albino?'#c85a64':'#191d21',roughness:0.25,metalness:0.1}));
-    e.position.set(L*0.37, D*0.18, zs*W*0.92); g.add(e);
-    const hl=new THREE.Mesh(new THREE.SphereGeometry(eR*0.38,8,8),new THREE.MeshBasicMaterial({color:'#fff'}));
-    hl.position.set(L*0.37+eR*0.45, D*0.24, zs*(W*0.92+eR*0.25)); g.add(hl);
+    const sclera=new THREE.Mesh(new THREE.SphereGeometry(eR,16,14), toonMat('#f8f5ef'));
+    sclera.position.set(eX,eY,zs*eZ); g.add(sclera);
+    const pupil=new THREE.Mesh(new THREE.SphereGeometry(eR*0.62,14,12),
+      toonMat(sp.albino?'#c14a58':'#14171b'));
+    pupil.position.set(eX+eR*0.46, eY-eR*0.05, zs*(eZ+eR*0.4)); g.add(pupil);
+    const hl=new THREE.Mesh(new THREE.SphereGeometry(eR*0.24,8,8),new THREE.MeshBasicMaterial({color:'#fff'}));
+    hl.position.set(eX+eR*0.7, eY+eR*0.32, zs*(eZ+eR*0.55)); g.add(hl);
   }
 
-  g.userData.len=L;       // 頭朝 +X、背朝 +Y
+  // 鬚（鯰、鯉、鰻、鱔…）
+  if(fishHasWhiskers(sp.baseZh)){
+    const wMat=toonMat(cBody.clone().multiplyScalar(0.65));
+    for(const zs of [1,-1]) for(let k=0;k<2;k++){
+      const wl=L*(0.22+k*0.06);
+      const w=new THREE.Mesh(new THREE.CylinderGeometry(0.005,0.013,wl,5),wMat);
+      w.position.set(L*0.5+wl*0.32, -D*0.16-k*D*0.1, zs*W*0.55);
+      w.rotation.z=-Math.PI/2-0.4; w.rotation.y=zs*(0.35+k*0.25); g.add(w);
+    }
+  }
+
+  // 河豚刺
+  if(sp.shape==='round'){
+    const spMat=toonMat(cBody.clone().multiplyScalar(0.82));
+    const up=new THREE.Vector3(0,1,0);
+    for(let i=0;i<24;i++){
+      const u=fhash(i,3), v=fhash(i,9), a=u*Math.PI*2, b=Math.acos(2*v-1);
+      const dir=new THREE.Vector3(Math.sin(b)*Math.cos(a),Math.cos(b),Math.sin(b)*Math.sin(a));
+      const surf=new THREE.Vector3(dir.x*L*0.42, dir.y*D*0.95, dir.z*W*0.95);
+      if(surf.x>L*0.22) continue;             // 不長在臉上
+      const spike=new THREE.Mesh(new THREE.ConeGeometry(0.045,0.16,6),spMat);
+      spike.position.copy(surf); spike.quaternion.setFromUnitVectors(up,dir.clone().normalize());
+      g.add(spike);
+    }
+  }
+
+  g.userData.len=L;            // 頭朝 +X、背朝 +Y
+  g.userData.tail=tailPivot;   // 供擺尾動畫
+  g.userData.pects=pects;
+  g.userData.ph=Math.random()*6.28;
   return g;
 }
 
@@ -511,7 +587,7 @@ function makeFishMesh(sp){
    3. 場景：天空、水面、河岸、遠山、合流島、釣竿
    ========================================================================= */
 const canvas=document.getElementById('scene');
-const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
 const PR_HI=Math.min(devicePixelRatio,1.5);
 renderer.setPixelRatio(PR_HI);
 renderer.setSize(innerWidth,innerHeight);
@@ -521,18 +597,39 @@ renderer.toneMappingExposure=1.08;
 renderer.shadowMap.enabled=true;
 renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 
+// 偵測瀏覽器實際使用的 GPU（診斷「是否吃到獨顯」）
+let GPU_INFO='?';
+try{ const gl=renderer.getContext(); const ext=gl.getExtension('WEBGL_debug_renderer_info');
+  GPU_INFO=(ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER))||'?';
+}catch(e){}
+console.log('[GPU]',GPU_INFO);
+const perfEl=document.createElement('div');
+perfEl.style.cssText='position:fixed;left:8px;bottom:8px;z-index:40;font:11px ui-monospace,monospace;'+
+  'background:rgba(0,0,0,.42);color:#fff;padding:3px 9px;border-radius:6px;pointer-events:none;'+
+  'max-width:70vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+document.body.appendChild(perfEl);
+let _fps=0;
+
 const scene=new THREE.Scene();
 const HORIZON=new THREE.Color('#bcd9e8');
 scene.fog=new THREE.Fog(HORIZON,60,360);            // 更柔更遠的空氣感
 
-// 環境光照（PMREM）：讓材質有柔和反射、不再像塑膠
+// 環境光照（PMREM）：給水面一點柔和反射
 if(RoomEnvironment){
   const pmrem=new THREE.PMREMGenerator(renderer);
   scene.environment=pmrem.fromScene(new RoomEnvironment(),0.04).texture;
 }
 
-const camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,0.1,1200);
-camera.position.set(0,1.75,6);
+/* ===== 軟質可愛 3D：霧面材質 + 柔光柔影、無描邊（Spline/黏土風） ===== */
+function toonMat(color,opts){
+  const o=Object.assign({},opts||{}); delete o.gradientMap;
+  return new THREE.MeshStandardMaterial(Object.assign({color,roughness:0.82,metalness:0.0,envMapIntensity:0.6},o));
+}
+function addOutline(mesh){ return mesh; }   // 不再描邊（保留呼叫處不報錯）
+
+const camera=new THREE.PerspectiveCamera(46,innerWidth/innerHeight,0.1,1200);
+camera.position.set(5,5,12.5);
+camera.lookAt(-0.6,1.0,-5);
 scene.add(camera);
 
 const sunDir=new THREE.Vector3(-0.45,0.62,-0.7).normalize();
@@ -555,9 +652,9 @@ const skyMat=new THREE.ShaderMaterial({
 });
 scene.add(new THREE.Mesh(new THREE.SphereGeometry(600,32,24),skyMat));
 
-// --- 燈光：低環境 + 強暖陽 + 柔影（明暗對比才立體）---
-scene.add(new THREE.HemisphereLight('#dcefff','#465f39',0.55));
-const sun=new THREE.DirectionalLight('#ffedd0',2.7);
+// --- 燈光：明亮柔和（軟質 3D：高環境光 + 柔和主光 + 柔影）---
+scene.add(new THREE.HemisphereLight('#eaf4ff','#9fb59a',1.05));
+const sun=new THREE.DirectionalLight('#fff3df',1.6);
 sun.position.copy(sunDir).multiplyScalar(80);
 sun.castShadow=true;
 sun.shadow.mapSize.set(1024,1024);
@@ -568,15 +665,16 @@ sun.shadow.bias=-0.0005; sun.shadow.normalBias=0.04; sun.shadow.radius=3;
 scene.add(sun);
 scene.add(sun.target);
 
-// --- 水面（自訂著色器：柔波＋陽光反光＋遠處融入地平線）---
+// --- 河流 / 大地 ---
+const WATER_Y=0.22;
 const WAVE_GLSL=`
   float wv(vec2 p,float t){ float h=0.0;
-    h+=sin(p.x*0.6+t*1.1)*0.16; h+=sin(p.y*0.5-t*0.9)*0.14;
-    h+=sin((p.x+p.y)*0.3+t*0.7)*0.10; h+=sin((p.x*0.9-p.y*0.7)+t*1.6)*0.05;
+    h+=sin(p.x*0.6+t*1.1)*0.05; h+=sin(p.y*0.5-t*0.9)*0.04;
+    h+=sin((p.x+p.y)*0.3+t*0.7)*0.028; h+=sin((p.x*0.9-p.y*0.7)+t*1.6)*0.014;
     return h; }`;
 const waterUniforms={
-  uTime:{value:0}, uDeep:{value:new THREE.Color('#123f55')}, uShallow:{value:new THREE.Color('#2f8a86')},
-  uSky:{value:new THREE.Color('#9fcdf0')}, uHorizon:{value:HORIZON},
+  uTime:{value:0}, uDeep:{value:new THREE.Color('#1f86c8')}, uShallow:{value:new THREE.Color('#5cc6ee')},
+  uSky:{value:new THREE.Color('#aee0fb')}, uHorizon:{value:HORIZON},
   uSun:{value:sunDir}, uSunCol:{value:new THREE.Color('#fff0d4')},
   uCam:{value:new THREE.Vector3()},
 };
@@ -599,44 +697,65 @@ const waterMat=new THREE.ShaderMaterial({
       vec3 col=mix(body,reflc,min(fres*0.7,0.5));
       // 三段式陽光反光（含 >1 數值供 bloom 發亮）
       float sa=max(dot(reflect(-L,N),v),0.0);
-      col+=uSunCol*pow(sa,130.0)*2.4;
-      col+=uSunCol*pow(sa,28.0)*0.30;
-      col+=uSunCol*pow(sa,6.0)*0.05;
+      col+=uSunCol*pow(sa,130.0)*0.8;
+      col+=uSunCol*pow(sa,28.0)*0.18;
       col=mix(col,uHorizon,smoothstep(60.0,320.0,d));  // 與霧/地平線融合
       gl_FragColor=vec4(col,1.0); }`,
 });
-const waterGeo=new THREE.PlaneGeometry(300,300,108,108);
+// 大地：鋪滿全場的亮綠草地（動森風）
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(700,700), toonMat('#7ec84a'));
+ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; scene.add(ground);
+// 前方河水（一條帶狀水域；近邊 z≈2，遠邊 z≈-56）
+const waterGeo=new THREE.PlaneGeometry(200,58,80,40);
 const water=new THREE.Mesh(waterGeo,waterMat);
-water.rotation.x=-Math.PI/2;
+water.rotation.x=-Math.PI/2; water.position.set(0,WATER_Y,-27);
 scene.add(water);
-function waveHeight(x,z,t){ return Math.sin(x*0.6+t*1.1)*0.16+Math.sin(z*0.5-t*0.9)*0.14
-  +Math.sin((x+z)*0.3+t*0.7)*0.10+Math.sin((x*0.9-z*0.7)+t*1.6)*0.05; }
+function waveHeight(x,z,t){ return Math.sin(x*0.6+t*1.1)*0.05+Math.sin(z*0.5-t*0.9)*0.04
+  +Math.sin((x+z)*0.3+t*0.7)*0.028+Math.sin((x*0.9-z*0.7)+t*1.6)*0.014; }
 
-// --- 河岸（兩側）＋蘆葦 ---
-function smoothMat(c){ return new THREE.MeshStandardMaterial({color:c,roughness:0.9,metalness:0,envMapIntensity:0.5}); }
-function makeBank(side){
-  const g=new THREE.Group();
-  const slab=new THREE.Mesh(new THREE.BoxGeometry(40,3,260), smoothMat('#8fbf6b'));
-  slab.position.set(side*30,-1.2,-60);
-  g.add(slab);
-  const dirt=new THREE.Mesh(new THREE.BoxGeometry(40,3,260),smoothMat('#b9a37a'));
-  dirt.position.set(side*30,-2.6,-60); g.add(dirt);
-  // 樹與蘆葦
-  for(let i=0;i<26;i++){
-    const z=-130+Math.random()*250, x=side*(12+Math.random()*26);
-    if(Math.random()<0.5) g.add(makeTree(x,0.1,z, 1+Math.random()*1.2));
-    else g.add(makeReed(side*(11+Math.random()*3),0,z));
+// --- 草地裝飾 ---
+function smoothMat(c){ return toonMat(c); }
+const FLOWER_COLORS=['#ef6f8e','#f4c145','#ffffff','#d56fef','#ff8a5b','#7fd0ff'];
+function makeFlower(x,z){
+  const g=new THREE.Group(); const n=2+(Math.random()*3|0);
+  for(let i=0;i<n;i++){
+    const px=(Math.random()-0.5)*0.6, pz=(Math.random()-0.5)*0.6, hh=0.22+Math.random()*0.16;
+    const stem=new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.018,hh,5),toonMat('#5f9e4e'));
+    stem.position.set(px,hh/2,pz); g.add(stem);
+    const head=new THREE.Mesh(new THREE.SphereGeometry(0.06,8,7),toonMat(FLOWER_COLORS[FLOWER_COLORS.length*Math.random()|0]));
+    head.position.set(px,hh+0.03,pz); head.scale.y=0.65; g.add(head);
   }
-  return g;
+  g.position.set(x,0,z); return g;
+}
+function makeBush(x,z,s){
+  const b=new THREE.Mesh(new THREE.IcosahedronGeometry(0.5*s,2),toonMat('#6fa84f'));
+  b.scale.y=0.7; b.position.set(x,0.3*s,z); addOutline(b); return b;
+}
+function makeRock(x,z,s){
+  const r=new THREE.Mesh(new THREE.IcosahedronGeometry(0.4*s,1),toonMat('#9aa0a6'));
+  r.scale.set(1,0.68,0.85); r.position.set(x,0.16*s,z); r.rotation.set(Math.random()*3,Math.random()*3,Math.random()*3);
+  addOutline(r); return r;
+}
+function makeLily(x,z){
+  const g=new THREE.Group();
+  const pad=new THREE.Mesh(new THREE.CircleGeometry(0.38,14),toonMat('#5aa86a',{side:THREE.DoubleSide}));
+  pad.rotation.x=-Math.PI/2; g.add(pad);
+  if(Math.random()<0.45){ const fl=new THREE.Mesh(new THREE.SphereGeometry(0.11,10,8),toonMat('#f3a0c0'));
+    fl.position.y=0.07; fl.scale.y=0.6; g.add(fl); }
+  g.position.set(x,WATER_Y+0.02,z); return g;
 }
 function makeTree(x,y,z,s){
   const t=new THREE.Group();
-  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(0.18*s,0.28*s,1.6*s,8),smoothMat('#a07c52'));
-  trunk.position.y=0.8*s; t.add(trunk);
-  const greens=['#7fb86a','#74ad60','#8cc278'];
-  for(let i=0;i<3;i++){
-    const c=new THREE.Mesh(new THREE.IcosahedronGeometry((0.9-i*0.18)*s,2),smoothMat(greens[i%3]));
-    c.position.y=(1.6+i*0.55)*s; c.scale.y=0.9; t.add(c);
+  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(0.22*s,0.34*s,1.5*s,10),smoothMat('#9a6b43'));
+  trunk.position.y=0.75*s; t.add(trunk);
+  const canopy=new THREE.Mesh(new THREE.IcosahedronGeometry(1.2*s,3),smoothMat('#5fb846'));
+  canopy.position.y=2.05*s; t.add(canopy);
+  const canopy2=new THREE.Mesh(new THREE.IcosahedronGeometry(0.82*s,3),smoothMat('#6fc457'));
+  canopy2.position.set(0.32*s,2.55*s,0.2*s); t.add(canopy2);
+  for(let i=0;i<5;i++){
+    const ap=new THREE.Mesh(new THREE.SphereGeometry(0.1*s,8,8),toonMat('#e8443a'));
+    const a=Math.random()*6.28, r=(0.92+Math.random()*0.3)*s;
+    ap.position.set(Math.cos(a)*r,(1.85+Math.random()*0.85)*s,Math.sin(a)*r); t.add(ap);
   }
   t.position.set(x,y,z); t.rotation.y=Math.random()*6.28; return t;
 }
@@ -650,12 +769,24 @@ function makeReed(x,y,z){
   }
   g.position.set(x,y,z); return g;
 }
-scene.add(makeBank(1)); scene.add(makeBank(-1));
+// 散佈樹木（近岸兩側 + 對岸）、灌木、石頭、花、蘆葦、睡蓮
+const farFromAngler=(x,z)=> Math.hypot(x-(-0.8), z-4)>2.2;
+for(let i=0;i<24;i++){
+  const far=Math.random()<0.5;
+  const z=far ? -60-Math.random()*95 : 6+Math.random()*16;
+  const x=(Math.random()<0.5?-1:1)*(13+Math.random()*45);
+  scene.add(makeTree(x,0,z,1+Math.random()*1.3));
+}
+for(let i=0;i<14;i++){ const x=-55+Math.random()*110, z=4+Math.random()*16; if(farFromAngler(x,z)) scene.add(makeBush(x,z,0.7+Math.random()*0.8)); }
+for(let i=0;i<12;i++){ const x=-55+Math.random()*110, z=3+Math.random()*16; if(farFromAngler(x,z)) scene.add(makeRock(x,z,0.6+Math.random()*0.7)); }
+for(let i=0;i<34;i++){ const x=-58+Math.random()*116, z=3+Math.random()*18; if(farFromAngler(x,z)) scene.add(makeFlower(x,z)); }
+for(let i=0;i<20;i++){ const x=(Math.random()<0.5?-1:1)*(7+Math.random()*70); scene.add(makeReed(x,0,(Math.random()<0.5?2.5:-55)+(Math.random()-0.5)*3)); }
+for(let i=0;i<10;i++) scene.add(makeLily((Math.random()-0.5)*80,-3-Math.random()*44));
 
 // --- 遠山 ＋ 合流中島 ---
 function makeHill(x,z,s,c){
   const h=new THREE.Mesh(new THREE.SphereGeometry(s,24,16,0,Math.PI*2,0,Math.PI*0.5),smoothMat(c));
-  h.position.set(x,-1.5,z); h.scale.y=0.55; return h;
+  h.position.set(x,-1.5,z); h.scale.y=0.55; addOutline(h); return h;
 }
 scene.add(makeHill(-30,-150,40,'#9cc0ac'));
 scene.add(makeHill(28,-165,52,'#8fb6a4'));
@@ -663,12 +794,12 @@ scene.add(makeHill(2,-185,64,'#a7c8b6'));
 // 合流中島（遠處把水流一分為二）
 const island=new THREE.Group();
 const im=new THREE.Mesh(new THREE.SphereGeometry(12,24,16,0,Math.PI*2,0,Math.PI*0.5),smoothMat('#86bd66'));
-im.scale.y=0.4; island.add(im);
+im.scale.y=0.4; addOutline(im); island.add(im);
 for(let i=0;i<6;i++) island.add(makeTree((Math.random()-0.5)*14,0,(Math.random()-0.5)*14,1+Math.random()));
 island.position.set(0,-0.6,-95); scene.add(island);
 
 // 讓陸地物件投/受柔影（水面與天空除外）
-scene.traverse(o=>{ if(o.isMesh && o!==water && o.material!==skyMat){ o.castShadow=true; o.receiveShadow=true; } });
+scene.traverse(o=>{ if(o.isMesh && o!==water && o.material!==skyMat && !o.userData.isOutline){ o.castShadow=true; o.receiveShadow=true; } });
 
 // --- 雲 ---
 function makeCloud(x,y,z,s){
@@ -688,9 +819,9 @@ for(let i=0;i<7;i++){
   c.userData.drift=0.4+Math.random()*0.5; scene.add(c); clouds.push(c);
 }
 
-// --- 水面下悠游的點景魚 ---
+// --- 水面下悠游的點景魚（不透明水面會擋住，先停用以省效能）---
 const ambient=[];
-for(let i=0;i<5;i++){
+for(let i=0;i<0;i++){
   const m=makeFishMesh(rollSpecies());
   m.scale.setScalar(0.5+Math.random()*0.5);
   m.position.set((Math.random()-0.5)*16,-0.6-Math.random()*0.6,-10-Math.random()*22);
@@ -699,33 +830,171 @@ for(let i=0;i<5;i++){
   scene.add(m); ambient.push(m);
 }
 
-// --- 第一人稱釣竿 ---
+// --- 可愛釣手（Q 版，面向 -Z 水面）---
+// 軟質可愛角色（站姿，臉朝 -Z）
+function makeAngler(){
+  const a=new THREE.Group();
+  const skin=toonMat('#f6cda3'), shirt=toonMat('#5aa9c9'), pants=toonMat('#3a4150'),
+        hair=toonMat('#6b452e',{roughness:0.7}), shoe=toonMat('#f6f6f6');
+  // 腿 + 鞋
+  for(const xs of [1,-1]){
+    const leg=new THREE.Mesh(new THREE.CapsuleGeometry(0.18,0.7,8,16),pants);
+    leg.position.set(xs*0.21,0.6,0); a.add(leg);
+    const sh=new THREE.Mesh(new THREE.SphereGeometry(0.21,16,12),shoe);
+    sh.scale.set(1,0.62,1.55); sh.position.set(xs*0.21,0.14,0.16); a.add(sh);
+  }
+  // 身體
+  const torso=new THREE.Mesh(new THREE.CapsuleGeometry(0.44,0.5,10,20),shirt);
+  torso.position.y=1.32; torso.scale.set(1,1,0.9); a.add(torso);
+  // 手臂（左垂、右往前握竿）
+  const armL=new THREE.Mesh(new THREE.CapsuleGeometry(0.135,0.52,8,14),shirt);
+  armL.position.set(-0.52,1.3,0); armL.rotation.z=0.16; a.add(armL);
+  const handL=new THREE.Mesh(new THREE.SphereGeometry(0.14,14,12),skin); handL.position.set(-0.6,0.95,0); a.add(handL);
+  const armR=new THREE.Mesh(new THREE.CapsuleGeometry(0.135,0.5,8,14),shirt);
+  armR.position.set(0.5,1.42,-0.28); armR.rotation.set(-1.05,0,-0.18); a.add(armR);
+  const handR=new THREE.Mesh(new THREE.SphereGeometry(0.14,14,12),skin); handR.position.set(0.56,1.22,-0.66); a.add(handR);
+  // 頭
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.54,28,26),skin);
+  head.scale.set(1,1.05,0.97); head.position.y=2.12; a.add(head);
+  // 頭髮（圓潤幾片）
+  const hairTop=new THREE.Mesh(new THREE.SphereGeometry(0.575,28,22,0,6.283,0,Math.PI*0.62),hair);
+  hairTop.position.y=2.14; a.add(hairTop);
+  for(const xs of [1,-1]){ const cl=new THREE.Mesh(new THREE.SphereGeometry(0.26,16,14),hair);
+    cl.position.set(xs*0.38,2.28,0.16); cl.scale.set(0.78,1.12,0.82); a.add(cl); }
+  const bang=new THREE.Mesh(new THREE.SphereGeometry(0.34,18,14),hair);
+  bang.position.set(0,2.36,0.3); bang.scale.set(1.25,0.72,0.62); a.add(bang);
+  // 臉（朝 -Z）：大眼＋虹膜＋高光＋眉毛＋腮紅＋鼻
+  for(const xs of [1,-1]){
+    const sclera=new THREE.Mesh(new THREE.SphereGeometry(0.15,18,16),toonMat('#ffffff',{roughness:0.5}));
+    sclera.scale.set(0.78,1.08,0.55); sclera.position.set(xs*0.22,2.12,-0.46); a.add(sclera);
+    const iris=new THREE.Mesh(new THREE.SphereGeometry(0.088,16,14),toonMat('#3a2a20',{roughness:0.4}));
+    iris.position.set(xs*0.22,2.10,-0.54); a.add(iris);
+    const pup=new THREE.Mesh(new THREE.SphereGeometry(0.045,12,12),toonMat('#15110d'));
+    pup.position.set(xs*0.22,2.10,-0.58); a.add(pup);
+    const hl=new THREE.Mesh(new THREE.SphereGeometry(0.035,8,8),new THREE.MeshBasicMaterial({color:'#fff'}));
+    hl.position.set(xs*0.22-0.04,2.15,-0.585); a.add(hl);
+    const brow=new THREE.Mesh(new THREE.BoxGeometry(0.18,0.045,0.07),toonMat('#46301f'));
+    brow.position.set(xs*0.22,2.32,-0.48); brow.rotation.z=-xs*0.12; a.add(brow);
+    const ch=new THREE.Mesh(new THREE.SphereGeometry(0.09,12,10),toonMat('#f0a088',{transparent:true,opacity:0.5}));
+    ch.position.set(xs*0.36,1.98,-0.42); ch.scale.set(1,0.7,0.45); a.add(ch);
+  }
+  const nose=new THREE.Mesh(new THREE.SphereGeometry(0.05,10,8),toonMat('#e8b08a'));
+  nose.position.set(0,2.0,-0.56); a.add(nose);
+  a.traverse(o=>{ if(o.isMesh) o.castShadow=true; });
+  a.userData.handR=handR;
+  return a;
+}
+const angler=makeAngler();
+const ANGLER_Y=0;
+angler.position.set(-1,ANGLER_Y,4); angler.rotation.y=Math.PI-0.35;  // 與模型同朝向
+scene.add(angler);
+
+// --- 釣竿（接到角色右手）---
 const rod=new THREE.Group();
-const ROD_LEN=2.7;
-const rodGeo=new THREE.CylinderGeometry(0.012,0.032,ROD_LEN,12);
+const ROD_LEN=3.0;
+const rodGeo=new THREE.CylinderGeometry(0.018,0.045,ROD_LEN,12);
 rodGeo.translate(0,ROD_LEN/2,0);
-const rodMesh=new THREE.Mesh(rodGeo,new THREE.MeshStandardMaterial({color:'#4a3b30',roughness:0.5,metalness:0.3}));
-rod.add(rodMesh);
-const handle=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.045,0.5,12),
-  new THREE.MeshStandardMaterial({color:'#2b2b2e',roughness:0.8}));
+const rodMesh=new THREE.Mesh(rodGeo,toonMat('#4a3b30'));
+addOutline(rodMesh); rod.add(rodMesh);
+const handle=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.065,0.5,12),toonMat('#2b2b2e'));
 handle.position.y=0.2; rod.add(handle);
-const reel=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,0.05,16),
-  new THREE.MeshStandardMaterial({color:'#caa24a',roughness:0.35,metalness:0.6}));
-reel.rotation.x=Math.PI/2; reel.position.set(0.06,0.55,0.05); rod.add(reel);
-rod.position.set(0.6,-0.5,-0.85); rod.rotation.set(-0.5,0,0.26);
-camera.add(rod);
+const reel=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,0.06,16),toonMat('#caa24a'));
+reel.rotation.x=Math.PI/2; reel.position.set(0.08,0.55,0.06); rod.add(reel);
+rod.traverse(o=>{ if(o.isMesh && !o.userData.isOutline) o.castShadow=true; });
+const ROD_BASE_X=1.05, ROD_BASE_Z=0.1;
+rod.position.set(0.5,1.2,-0.6); rod.rotation.set(ROD_BASE_X,0,ROD_BASE_Z);
+angler.add(rod);
 const rodTipLocal=new THREE.Vector3(0,ROD_LEN,0);
+
+// --- 載入專業 CC0 可愛角色模型（RobotExpressive, by Tomás Laulhé），取代手拼角色 ---
+let mixer=null, robotActions=null, robotModel=null;
+const CHARACTER_TARGET_HEIGHT=2.5;
+function prepareLoadedCharacter(model){
+  model.traverse(o=>{
+    if(o.isMesh || o.isSkinnedMesh){
+      o.castShadow=true;
+      o.receiveShadow=true;
+      o.frustumCulled=false;
+      if(o.geometry){
+        if(!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+        if(!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
+      }
+    }
+  });
+}
+function isUsableBox(box){
+  return !box.isEmpty()
+    && Number.isFinite(box.min.x) && Number.isFinite(box.min.y) && Number.isFinite(box.min.z)
+    && Number.isFinite(box.max.x) && Number.isFinite(box.max.y) && Number.isFinite(box.max.z);
+}
+function getSafeBounds(obj){
+  obj.updateWorldMatrix(true,true);
+  const box=new THREE.Box3();
+  const meshBox=new THREE.Box3();
+  obj.traverse(o=>{
+    if((o.isMesh || o.isSkinnedMesh) && o.geometry){
+      if(!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+      meshBox.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld);
+      if(isUsableBox(meshBox)) box.union(meshBox);
+    }
+  });
+  if(box.isEmpty()) box.setFromObject(obj);
+  const size=new THREE.Vector3();
+  box.getSize(size);
+  const valid=isUsableBox(box)
+    && Number.isFinite(size.x) && Number.isFinite(size.y) && Number.isFinite(size.z)
+    && size.y>0.001;
+  return {box,size,valid};
+}
+function fitCharacterToAngler(model){
+  const before=getSafeBounds(model);
+  const rawScale=before.valid ? CHARACTER_TARGET_HEIGHT/before.size.y : 1;
+  const scale=Number.isFinite(rawScale) && rawScale>=0.01 && rawScale<=20 ? rawScale : 1;
+  model.scale.setScalar(scale);
+
+  const after=getSafeBounds(model);
+  const footY=after.valid && Number.isFinite(after.box.min.y) ? after.box.min.y : 0;
+  model.position.set(angler.position.x, angler.position.y-footY, angler.position.z);
+  model.rotation.y=Math.PI-0.35;                                 // 面向鏡頭
+  model.updateWorldMatrix(true,true);
+
+  return {size:before.size,scale,footY};
+}
+(async()=>{
+  try{
+    const { GLTFLoader }=await import('three/addons/loaders/GLTFLoader.js');
+    const gltf=await new GLTFLoader().loadAsync('https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/models/gltf/RobotExpressive/RobotExpressive.glb');
+    const model=gltf.scene;
+    // SkinnedMesh 移動後容易被視錐剔除誤判，載入模型一律關閉 mesh culling。
+    prepareLoadedCharacter(model);
+    const fit=fitCharacterToAngler(model);
+    scene.add(model); robotModel=model;
+    angler.children.forEach(c=>{ if(c!==rod) c.visible=false; });   // 藏手拼身體、保留釣竿
+    console.log('[model] size=',fit.size,'scale=',fit.scale,'footY=',fit.footY,'pos=',model.position);
+    toast('角色模型已載入 ✓');
+    mixer=new THREE.AnimationMixer(model);
+    robotActions={}; for(const cl of gltf.animations) robotActions[cl.name]=mixer.clipAction(cl);
+    (robotActions['Idle']||mixer.clipAction(gltf.animations[0])).play();
+  }catch(e){ console.warn('角色模型載入失敗，沿用內建角色：',e); }
+})();
+// 釣到魚時的慶祝表情
+function playEmote(name){
+  if(!mixer||!robotActions||!robotActions[name]) return;
+  const idle=robotActions['Idle']; const act=robotActions[name];
+  act.reset(); act.setLoop(THREE.LoopOnce,1); act.clampWhenFinished=true;
+  act.fadeIn(0.15).play(); if(idle) idle.crossFadeTo(act,0.15,false);
+  mixer.addEventListener('finished',function back(){ mixer.removeEventListener('finished',back);
+    if(idle){ idle.reset().fadeIn(0.3).play(); act.crossFadeTo(idle,0.3,false); } });
+}
 
 // --- 浮標 ---
 const bobber=new THREE.Group();
-const bTop=new THREE.Mesh(new THREE.SphereGeometry(0.12,16,16,0,6.28,0,Math.PI/2),
-  new THREE.MeshStandardMaterial({color:'#e8553e',roughness:0.4}));
-const bBot=new THREE.Mesh(new THREE.SphereGeometry(0.12,16,16,0,6.28,Math.PI/2,Math.PI/2),
-  new THREE.MeshStandardMaterial({color:'#f7f4ec',roughness:0.4}));
-const bAnt=new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.008,0.3,6),
-  new THREE.MeshStandardMaterial({color:'#e8553e'}));
-bAnt.position.y=0.2; bobber.add(bTop); bobber.add(bBot); bobber.add(bAnt);
-const CAST=new THREE.Vector3(0,0,-11);
+const bTop=new THREE.Mesh(new THREE.SphereGeometry(0.13,16,16,0,6.28,0,Math.PI/2), toonMat('#e8553e'));
+const bBot=new THREE.Mesh(new THREE.SphereGeometry(0.13,16,16,0,6.28,Math.PI/2,Math.PI/2), toonMat('#f7f4ec'));
+const bAnt=new THREE.Mesh(new THREE.CylinderGeometry(0.009,0.009,0.32,6), toonMat('#e8553e'));
+addOutline(bTop); addOutline(bBot);
+bAnt.position.y=0.22; bobber.add(bTop); bobber.add(bBot); bobber.add(bAnt);
+const CAST=new THREE.Vector3(0,0,-9);
 bobber.position.copy(CAST); bobber.visible=false; scene.add(bobber);
 
 // --- 釣線 ---
@@ -738,9 +1007,32 @@ const ripples=[];
 function spawnRipple(pos){
   const r=new THREE.Mesh(new THREE.RingGeometry(0.1,0.16,32),
     new THREE.MeshBasicMaterial({color:'#ffffff',transparent:true,opacity:0.7,side:THREE.DoubleSide}));
-  r.rotation.x=-Math.PI/2; r.position.copy(pos); r.position.y=0.02;
+  r.rotation.x=-Math.PI/2; r.position.copy(pos); r.position.y=WATER_Y+0.02;
   r.userData.t=0; scene.add(r); ripples.push(r);
 }
+
+// --- 魚影（動森機制：水裡黑影游向浮標）---
+const fishShadow=new THREE.Group();
+{ const sm=new THREE.Mesh(new THREE.CircleGeometry(0.5,22),
+    new THREE.MeshBasicMaterial({color:'#0e2e44',transparent:true,opacity:0.4}));
+  sm.rotation.x=-Math.PI/2; sm.scale.set(1,2.0,1); fishShadow.add(sm); }
+fishShadow.visible=false; scene.add(fishShadow);
+const shadowFrom=new THREE.Vector3(); let shadowStart=0, shadowDur=4000;
+
+// --- 水花 ---
+const splashes=[];
+function spawnSplash(pos){
+  for(let i=0;i<14;i++){
+    const d=new THREE.Mesh(new THREE.SphereGeometry(0.05+Math.random()*0.06,6,6),
+      new THREE.MeshBasicMaterial({color:'#eaf7ff'}));
+    d.position.copy(pos); d.position.y=WATER_Y;
+    const a=Math.random()*6.28, sp=1.8+Math.random()*2.6;
+    d.userData.v=new THREE.Vector3(Math.cos(a)*1.5, sp, Math.sin(a)*1.5); d.userData.t=0;
+    scene.add(d); splashes.push(d);
+  }
+}
+// --- 起魚（魚甩出水面）動畫 ---
+let leapFish=null, leapStart=0; const leapFrom=new THREE.Vector3(), leapTo=new THREE.Vector3();
 
 /* =========================================================================
    4. 漁獲預覽（獨立小渲染器）
@@ -792,7 +1084,7 @@ if(POST){
 }
 
 // 畫質：true=省效能（關後製/陰影、降解析度）
-let lowMode=false, useComposer=!!composer, _fr=0, _ft=0;
+let lowMode=false, useComposer=!!composer, _fr=0, _ft=0, _lowCount=0;
 function setLow(v){
   lowMode=v; useComposer=!v && !!composer;
   renderer.shadowMap.enabled=!v; sun.castShadow=!v;
@@ -809,14 +1101,14 @@ function renderMain(){
 /* =========================================================================
    5. 遊戲狀態機
    ========================================================================= */
-const S={ READY:'ready', CASTING:'casting', WAITING:'waiting', BITE:'bite', RESULT:'result', LOCK:'lock' };
+const S={ READY:'ready', CASTING:'casting', WAITING:'waiting', BITE:'bite', CATCH:'catch', RESULT:'result', LOCK:'lock' };
 let state=S.LOCK;
 const clock=new THREE.Clock();
 let now=0;
 
-let castStart=0, biteAt=0, biteStart=0, castFrom=new THREE.Vector3();
-const SWEEP=1500;                       // 起竿時機條總時長(ms)
-const ZONE=[30,82], PERFECT=[46,64];    // 綠區、黃心(百分比)
+let castStart=0, biteAt=0, biteStart=0, castFrom=new THREE.Vector3(), castT=-1;
+// 每次咬鉤隨機產生：總時長、綠區、黃心（越窄越快越難）
+let curSweep=1400, curZone=[30,82], curPerfect=[46,64];
 
 // 進度
 let coins=0, catchCount=0;
@@ -847,61 +1139,86 @@ const elTiming=document.getElementById('timing');
 const elMarker=document.getElementById('marker');
 const elZone=document.getElementById('zone');
 const elZoneP=document.getElementById('zonePerfect');
-elZone.style.left=ZONE[0]+'%'; elZone.style.width=(ZONE[1]-ZONE[0])+'%';
-elZoneP.style.left=PERFECT[0]+'%'; elZoneP.style.width=(PERFECT[1]-PERFECT[0])+'%';
+function applyTimingDOM(){
+  elZone.style.left=curZone[0]+'%'; elZone.style.width=(curZone[1]-curZone[0])+'%';
+  elZoneP.style.left=curPerfect[0]+'%'; elZoneP.style.width=(curPerfect[1]-curPerfect[0])+'%';
+}
+applyTimingDOM();
 
 function setHint(html){ elHint.innerHTML=html; elHint.style.opacity=html?1:0; }
 function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg;
   t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),1600); }
 
 function cast(){
-  state=S.CASTING; castStart=now;
-  camera.updateMatrixWorld(true);
+  state=S.CASTING; castStart=now; castT=0;          // 觸發甩竿動作
+  fishShadow.visible=false;
+  rod.updateWorldMatrix(true,false);
   castFrom.copy(rodTipLocal).applyMatrix4(rod.matrixWorld);
   bobber.visible=true; fishLine.visible=true;
   setHint('');
   sfx('cast');
 }
 function startWait(){
-  state=S.WAITING; biteAt=now+2500+Math.random()*5000;
-  setHint('靜待魚訊…<small>水面平靜，屏息以待</small>');
+  state=S.WAITING;
+  const ang=Math.random()*6.28, dist=7+Math.random()*5;
+  shadowFrom.set(CAST.x+Math.cos(ang)*dist, WATER_Y+0.02, CAST.z+Math.sin(ang)*dist);
+  fishShadow.position.copy(shadowFrom); fishShadow.visible=true;
+  shadowStart=now; shadowDur=2600+Math.random()*4200;
+  setHint('靜待魚訊…<small>注意水裡的黑影游向浮標</small>');
 }
 function startBite(){
-  state=S.BITE; biteStart=now;
+  state=S.BITE; biteStart=now; fishShadow.visible=false;
+  // 隨機難度：速度與綠區寬度/位置每次不同
+  curSweep = 820 + Math.random()*920;                  // 0.82–1.74 秒
+  const zw = 17 + Math.random()*24;                    // 綠區寬 17–41%
+  const zlo = 12 + Math.random()*(84-zw-12);           // 綠區起點
+  curZone=[zlo, zlo+zw];
+  const pw = Math.max(7, zw*0.4);                      // 黃心寬
+  const pc = zlo + zw*(0.35+Math.random()*0.3);        // 黃心位置
+  curPerfect=[Math.max(zlo,pc-pw/2), Math.min(zlo+zw,pc+pw/2)];
+  applyTimingDOM();
+  setHint('');                       // 清掉「靜待魚訊」避免疊字
   elTiming.classList.add('show');
   spawnRipple(bobber.position); spawnRipple(bobber.position);
-  sfx('bite'); toast('有魚咬鉤！');
+  sfx('bite');                       // 時機條＋音效即為提示，不再彈出泡泡
 }
 function endBite(escaped){
   elTiming.classList.remove('show');
 }
 
 function strike(){
-  const prog=(now-biteStart)/SWEEP*100;
+  const prog=(now-biteStart)/curSweep*100;
   endBite();
   let grade;
-  if(prog<ZONE[0]){ fail('起竿太早，魚兒受驚逃逸'); return; }
-  if(prog>ZONE[1]){ fail('起竿太遲，魚兒掙脫了'); return; }
-  grade = (prog>=PERFECT[0]&&prog<=PERFECT[1]) ? 'perfect' : 'good';
+  if(prog<curZone[0]){ fail('起竿太早，魚兒受驚逃逸'); return; }
+  if(prog>curZone[1]){ fail('起竿太遲，魚兒掙脫了'); return; }
+  grade = (prog>=curPerfect[0]&&prog<=curPerfect[1]) ? 'perfect' : 'good';
   succeed(grade);
 }
 function fail(msg){
   state=S.RESULT;
-  bobber.visible=false; fishLine.visible=false;
+  bobber.visible=false; fishLine.visible=false; fishShadow.visible=false;
   sfx('fail'); toast(msg);
   setTimeout(()=>{ if(state===S.RESULT){ state=S.READY;
     setHint('點擊或按 <b>空白鍵</b> 重新拋竿'); } },300);
 }
 function succeed(grade){
-  state=S.RESULT;
-  bobber.visible=false; fishLine.visible=false;
+  state=S.CATCH; fishShadow.visible=false;
   sfx('win');
   const sp=rollSpecies();
   const c=rollCatch(sp);
   const mul=grade==='perfect'?1.4:1.0;
   const value=Math.round(sp.baseValue*(0.55+0.9*c.sizeNorm)*mul);
   pendingCatch={sp,c,value,grade};
-  showResult(sp,c,value,grade);
+  if(robotActions) playEmote(robotActions['Wave']?'Wave':'Jump');   // 角色慶祝
+  // 魚甩出水面：建立魚、噴水花，飛向竿尖
+  leapFish=makeFishMesh(sp); leapFish.scale.setScalar(0.5);
+  leapFish.position.copy(bobber.position); scene.add(leapFish);
+  leapFrom.copy(bobber.position);
+  rod.updateWorldMatrix(true,false); leapTo.copy(rodTipLocal).applyMatrix4(rod.matrixWorld);
+  leapStart=now;
+  spawnSplash(bobber.position); spawnRipple(bobber.position); spawnRipple(bobber.position);
+  bobber.visible=false; fishLine.visible=true;
 }
 
 function showResult(sp,c,value,grade){
@@ -912,7 +1229,7 @@ function showResult(sp,c,value,grade){
   document.getElementById('rJa').textContent=sp.ja;
   const b=document.getElementById('rBadge'); b.textContent=R.label; b.style.background=R.color;
   document.getElementById('rLen').textContent=c.len+' cm';
-  document.getElementById('rWt').textContent=c.wt+' kg';
+  document.getElementById('rWt').textContent = c.wt>=1 ? c.wt+' kg' : Math.max(1,Math.round(c.wt*1000))+' g';
   document.getElementById('rRare').textContent=R.label;
   document.getElementById('rRare').style.color=R.color;
   document.getElementById('rVal').textContent=value.toLocaleString()+' 円'+(grade==='perfect'?'  ✨×1.4':'');
@@ -1037,11 +1354,13 @@ function animate(){
   requestAnimationFrame(animate);
   const dt=clock.getDelta(); now=performance.now();
   const t=clock.elapsedTime;
+  if(mixer) mixer.update(dt);
 
-  // 卡頓自動降畫質（啟動 3 秒後才偵測，避開載入抖動）
+  // FPS / GPU 診斷
   _fr++; _ft+=dt;
-  if(_ft>=1.2){ const fps=_fr/_ft; _fr=0; _ft=0;
-    if(t>3 && !lowMode && fps<38){ setLow(true); toast('偵測到卡頓，已自動切換省效能模式'); } }
+  if(_ft>=1.0){ _fps=Math.round(_fr/_ft); _fr=0; _ft=0;
+    perfEl.textContent='GPU: '+GPU_INFO+'   |   '+_fps+' FPS   |   '+(lowMode?'省效能':'高畫質')+'（不自動降）';
+  }
   waterUniforms.uTime.value=t;
   camera.getWorldPosition(waterUniforms.uCam.value);
 
@@ -1050,10 +1369,23 @@ function animate(){
     if(c.position.x>140) c.position.x=-140; }
 
   // 環顧（平滑）
-  yaw+=(tYaw-yaw)*0.05; pitch+=(tPitch-pitch)*0.05;
-  camera.rotation.set(pitch,yaw,0);
-  camera.position.x=Math.sin(t*0.3)*0.04;
-  camera.position.y=1.75+Math.sin(t*0.7)*0.02;
+  // 相機在水面前方、看回岸上角色（看得到正臉）
+  const px=tYaw*1.4, py=tPitch*1.6;
+  camera.position.set(7+Math.sin(t*0.25)*0.3+px, 3.4+Math.sin(t*0.4)*0.1-py, -10);
+  camera.lookAt(-1.6,1.55,3);
+
+  // 甩竿動作：後拉蓄力 → 前甩 → 回正
+  let swing=0;
+  if(castT>=0){ castT+=dt; const c=castT;
+    if(c<0.14) swing=-(c/0.14)*0.7;                         // 後拉
+    else if(c<0.40) swing=-0.7+((c-0.14)/0.26)*1.25;        // 前甩
+    else if(c<0.78) swing=0.55*(1-(c-0.40)/0.38);           // 回正
+    else { swing=0; castT=-1; }
+  }
+  let twitch=0;
+  if(state===S.BITE) twitch=Math.sin(now*0.025)*0.05;       // 咬鉤抽動
+  rod.rotation.x=ROD_BASE_X+swing+twitch+Math.sin(t*1.4)*0.012;
+  rod.rotation.z=ROD_BASE_Z+Math.sin(t*1.1)*0.01;
 
   // 點景魚悠游
   for(const m of ambient){
@@ -1063,6 +1395,7 @@ function animate(){
     const dx=Math.cos(m.userData.ph), dz=-Math.sin(m.userData.ph)*0.4;
     m.rotation.y=Math.atan2(-dz,dx);
     m.position.y=-0.55+Math.sin(t+m.userData.ph)*0.05;
+    if(m.userData.tail) m.userData.tail.rotation.y=Math.sin(t*6+m.userData.ph*3)*0.5;
   }
 
   // 浮標
@@ -1073,13 +1406,13 @@ function animate(){
       bx=castFrom.x+(CAST.x-castFrom.x)*k;
       bz=castFrom.z+(CAST.z-castFrom.z)*k;
       const arc=Math.sin(k*Math.PI)*2.2;
-      bobber.position.set(bx, castFrom.y+(0-castFrom.y)*k+arc, bz);
-      if(k>=1){ spawnRipple(new THREE.Vector3(CAST.x,0,CAST.z)); startWait(); }
+      bobber.position.set(bx, castFrom.y+(WATER_Y-castFrom.y)*k+arc, bz);
+      if(k>=1){ spawnRipple(new THREE.Vector3(CAST.x,WATER_Y,CAST.z)); startWait(); }
     } else {
       const wh=waveHeight(bx,bz,t);
       let dip=0;
-      if(state===S.BITE){ dip=-0.18-0.12*Math.abs(Math.sin((now-biteStart)*0.02)); }
-      bobber.position.set(bx, wh+dip+0.02, bz);
+      if(state===S.BITE){ dip=-0.05-0.05*Math.abs(Math.sin((now-biteStart)*0.02)); }
+      bobber.position.set(bx, WATER_Y+wh+dip+0.02, bz);
       bobber.rotation.z=Math.sin(t*2)*0.06;
     }
     // 釣線
@@ -1089,13 +1422,42 @@ function animate(){
     lineGeo.setFromPoints([tip,mid,bobber.position]);
   }
 
-  // 狀態推進
-  if(state===S.WAITING && now>=biteAt) startBite();
-  if(state===S.BITE){
-    const prog=Math.min(100,(now-biteStart)/SWEEP*100);
-    elMarker.style.left=prog+'%';
-    if(now-biteStart>=SWEEP){ endBite(); fail('魚兒掙脫了，下次抓準時機'); }
+  // 魚影游向浮標（WAITING）→ 抵達即咬鉤
+  if(state===S.WAITING){
+    const k=Math.min(1,(now-shadowStart)/shadowDur), e=k*k*(3-2*k), wob=(1-e)*0.5;
+    fishShadow.position.set(
+      shadowFrom.x+(CAST.x-shadowFrom.x)*e+Math.sin(t*3+1)*wob, WATER_Y+0.02,
+      shadowFrom.z+(CAST.z-shadowFrom.z)*e+Math.cos(t*3)*wob);
+    const sdx=CAST.x-fishShadow.position.x, sdz=CAST.z-fishShadow.position.z;
+    if(sdx*sdx+sdz*sdz>0.0004) fishShadow.rotation.y=Math.atan2(sdx,sdz);
+    if(k>=1) startBite();
   }
+  // 起竿時機條（BITE）
+  if(state===S.BITE){
+    const prog=Math.min(100,(now-biteStart)/curSweep*100);
+    elMarker.style.left=prog+'%';
+    if(now-biteStart>=curSweep){ endBite(); fail('魚兒掙脫了，下次抓準時機'); }
+  }
+  // 起魚動畫（CATCH）：魚甩出水面、沿弧線飛向竿尖
+  if(state===S.CATCH && leapFish){
+    const k=(now-leapStart)/850;
+    if(k>=1){
+      scene.remove(leapFish); leapFish=null; fishLine.visible=false;
+      showResult(pendingCatch.sp,pendingCatch.c,pendingCatch.value,pendingCatch.grade);
+      state=S.RESULT;
+    } else {
+      const p=leapFrom.clone().lerp(leapTo,k); p.y+=Math.sin(k*Math.PI)*1.9;
+      leapFish.position.copy(p);
+      leapFish.rotation.z=Math.PI*0.5-k*2.2; leapFish.rotation.y+=0.3;
+      if(leapFish.userData.tail) leapFish.userData.tail.rotation.y=Math.sin(t*22)*0.7;
+      camera.updateMatrixWorld(); tip.copy(rodTipLocal).applyMatrix4(rod.matrixWorld);
+      lineGeo.setFromPoints([tip, tip.clone().lerp(p,0.5), p]);
+    }
+  }
+  // 水花
+  for(let i=splashes.length-1;i>=0;i--){ const d=splashes[i]; d.userData.t+=dt;
+    d.userData.v.y-=9.5*dt; d.position.addScaledVector(d.userData.v,dt);
+    if(d.position.y<WATER_Y||d.userData.t>1.3){ scene.remove(d); splashes.splice(i,1); } }
 
   // 漣漪
   for(let i=ripples.length-1;i>=0;i--){
@@ -1107,7 +1469,10 @@ function animate(){
 
   renderMain();
 
-  if(pActive && pFish){ pFish.rotation.y+=dt*0.7; pRenderer.render(pScene,pCam); }
+  if(pActive && pFish){ pFish.rotation.y+=dt*0.6;
+    if(pFish.userData.tail) pFish.userData.tail.rotation.y=Math.sin(t*6)*0.5;
+    if(pFish.userData.pects) for(const p of pFish.userData.pects) p.rotation.x=-0.3+Math.sin(t*5)*0.25;
+    pRenderer.render(pScene,pCam); }
 }
 
 addEventListener('resize',()=>{
