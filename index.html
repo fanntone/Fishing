@@ -175,6 +175,11 @@
     .introcard h1{ font-size:30px; letter-spacing:5px; }
     .introcard .startbtn{ padding:14px 36px; font-size:16px; }
     .introcard .keys{ font-size:12px; padding:0 16px; }
+
+    /* 釣獲橫幅：縮小避免手機被裁切（inline 樣式需 !important 覆蓋） */
+    #victory-title{ font-size:30px !important; letter-spacing:4px !important; }
+    #victory-subtitle{ font-size:15px !important; letter-spacing:1px !important; padding:0 18px; }
+    #perfbox, #errbox{ font-size:10px !important; }
   }
   @keyframes victory-pop {
     0% { transform: scale(0.6); opacity: 0; }
@@ -194,7 +199,7 @@
 
 
   <div id="topbar" class="hud">
-    <div class="chip"><span class="ic">🪙</span><b id="coins">0</b> 円</div>
+    <div class="chip"><span class="ic">🪙</span><b id="coins">0</b> 元</div>
     <div class="chip"><span class="ic">🐟</span>圖鑑 <b id="dexcount">0</b>/<span id="dextotal">0</span></div>
     <div class="chip"><span class="ic">🎣</span>釣獲 <b id="catchcount">0</b></div>
   </div>
@@ -388,6 +393,12 @@ const FAMILIES = [
   ['須鱲','ズナガニゴイ',1,8,16,150,'#a8b6bc','#e0c6cc','#7f9ed0','slim','乾淨低海拔溪流','落水昆蟲','婚姻色夏','雄魚婚姻色繽紛，台灣特有的美麗小魚'],
   ['高身鯝魚','タカハヤ',2,15,30,300,'#aab6bc','#dee6ea','#808f99','slim','中上游清澈水域','刮食藻類','涼季','台灣特有亞種，洄游於清淨溪段'],
   ['櫻花鉤吻鮭','タイワンマス',4,20,40,2200,'#9fb1bc','#f0c4cb','#7c8e99','slim','高山冷冽清流','水生昆蟲','涼季','冰河孑遺、台灣國寶，僅存大甲溪上游'],
+  // 海洋生物
+  ['黑鮪魚','クロマグロ',3,80,250,1800,'#39566b','#cdd6db','#27404f','tuna','外洋大洋區','沙丁魚與烏賊','冬季','高速洄游的大洋獵手，生魚片之王'],
+  ['鯊魚','サメ',4,120,320,2600,'#8c99a4','#e6ebee','#6f7d88','shark','近海至外洋','魚類與海獸','全年','海中頂級掠食者，氣場懾人'],
+  ['水母','クラゲ',1,15,55,200,'#9fb6e8','#ecdcf2','#cfe0f5','jelly','沿岸漂浮水層','浮游生物','暖季','隨波漂游的透明精靈，觸手帶刺'],
+  ['海龜','ウミガメ',3,40,120,1500,'#5f7a4e','#cbb88a','#7a8f5a','turtle','沿岸與大洋','海藻與水母','全年','悠游大洋的長壽旅者，受國際保育'],
+  ['海螺','サザエ',0,8,28,150,'#d8b98a','#f1e3c9','#b89a6a','conch','岩礁與砂地','藻類與底棲','四季','螺旋殼的海濱住客，肉質鮮美'],
 ];
 
 const VARIANTS = [
@@ -435,7 +446,8 @@ function rollSpecies(){
   for(const sp of SPECIES){ r -= RARITY[sp.rarity].weight; if(r<=0) return sp; }
   return SPECIES[0];
 }
-const SHAPE_DENSITY={ eel:0.0011, flat:0.0016, round:0.0024, normal:0.0019, slim:0.0015, deep:0.0021 };
+const SHAPE_DENSITY={ eel:0.0011, flat:0.0016, round:0.0024, normal:0.0019, slim:0.0015, deep:0.0021,
+  shark:0.0016, tuna:0.0020, jelly:0.0005, turtle:0.0030, conch:0.0014 };
 function rollCatch(sp){
   const t=Math.random();
   const len=+(sp.lenMin+(sp.lenMax-sp.lenMin)*t).toFixed(1);
@@ -530,6 +542,7 @@ function makeFishMesh(sp){
   const th=D*1.35*(P.tailSize/0.5), tl=L*0.32*(P.tailSize/0.5), ts=new THREE.Shape();
   if(P.tail==='forked'){ ts.moveTo(0,0); ts.lineTo(-tl,th); ts.lineTo(-tl*0.5,0); ts.lineTo(-tl,-th); ts.closePath(); }
   else if(P.tail==='pointed'){ ts.moveTo(0,0); ts.lineTo(-tl,th*0.45); ts.lineTo(-tl*1.2,0); ts.lineTo(-tl,-th*0.45); ts.closePath(); }
+  else if(P.tail==='crescent'){ ts.moveTo(0,0); ts.lineTo(-tl*0.55,th*1.25); ts.lineTo(-tl*0.2,0); ts.lineTo(-tl*0.55,-th*1.25); ts.closePath(); }  // 新月尾（鮪/鯊）
   else { ts.moveTo(0,0); for(let k=0;k<=8;k++){ const a=(-0.5+k/8)*Math.PI*0.92; ts.lineTo(-Math.cos(a)*tl, Math.sin(a)*th); } ts.closePath(); }
   const tailPivot=new THREE.Group(); tailPivot.position.set(-L*0.5,0,0);
   const tailMesh=new THREE.Mesh(new THREE.ShapeGeometry(ts),finMat); tailPivot.add(tailMesh); g.add(tailPivot);
@@ -593,6 +606,62 @@ function makeFishMesh(sp){
   g.userData.pects=pects;
   g.userData.ph=Math.random()*6.28;
   return g;
+}
+
+// --- 海洋生物（非魚體：水母 / 海龜 / 海螺）---
+function makeJelly(sp){
+  const g=new THREE.Group();
+  const c1=new THREE.Color(sp.color1), c2=new THREE.Color(sp.color2);
+  const bellMat=new THREE.MeshStandardMaterial({color:c1,roughness:0.3,metalness:0,
+    transparent:true,opacity:0.62,emissive:c1,emissiveIntensity:0.25,side:THREE.DoubleSide});
+  const bell=new THREE.Mesh(new THREE.SphereGeometry(0.8,24,16,0,6.283,0,Math.PI*0.62),bellMat);
+  bell.scale.y=0.85; bell.position.y=0.2; g.add(bell);
+  const core=new THREE.Mesh(new THREE.SphereGeometry(0.4,16,12),
+    new THREE.MeshStandardMaterial({color:c2,transparent:true,opacity:0.5,emissive:c2,emissiveIntensity:0.3}));
+  core.scale.y=0.7; core.position.y=0.16; g.add(core);
+  const tMat=new THREE.MeshStandardMaterial({color:c1,transparent:true,opacity:0.6,emissive:c1,emissiveIntensity:0.2});
+  const tentacles=[];
+  for(let i=0;i<10;i++){ const a=i/10*6.283, tl=0.9+Math.random()*0.5;
+    const te=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.04,tl,5),tMat);
+    te.position.set(Math.cos(a)*0.55,-tl*0.5+0.1,Math.sin(a)*0.55); g.add(te); tentacles.push(te);
+  }
+  g.userData.len=1.7; g.userData.kind='jelly'; g.userData.bell=bell; g.userData.tentacles=tentacles;
+  return g;
+}
+function makeTurtle(sp){
+  const g=new THREE.Group();
+  const c1=new THREE.Color(sp.color1), c2=new THREE.Color(sp.color2);
+  const skin=toonMat(c2.clone().multiplyScalar(0.9));
+  const shell=new THREE.Mesh(new THREE.SphereGeometry(0.9,24,16),toonMat(c1));
+  shell.scale.set(1.1,0.5,1.0); g.add(shell);
+  const belly=new THREE.Mesh(new THREE.SphereGeometry(0.85,20,12),toonMat(c2));
+  belly.scale.set(1.05,0.26,0.95); belly.position.y=-0.12; g.add(belly);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.28,16,14),skin);
+  head.position.set(1.0,0.05,0); head.scale.set(1.2,0.9,0.9); g.add(head);
+  for(const zs of[1,-1]){ const e=new THREE.Mesh(new THREE.SphereGeometry(0.06,10,8),toonMat('#14171b'));
+    e.position.set(1.16,0.12,zs*0.12); g.add(e); }
+  const flippers=[];
+  const flip=(x,z,ry)=>{ const f=new THREE.Mesh(new THREE.SphereGeometry(0.3,12,8),skin);
+    f.scale.set(1.4,0.16,0.5); f.position.set(x,-0.05,z); f.rotation.y=ry; g.add(f); flippers.push(f); };
+  flip(0.5,0.7,0.6); flip(0.5,-0.7,-0.6); flip(-0.55,0.6,2.4); flip(-0.55,-0.6,-2.4);
+  g.userData.len=2.0; g.userData.kind='turtle'; g.userData.flippers=flippers;
+  return g;
+}
+function makeConch(sp){
+  const g=new THREE.Group(); const mat=toonMat(sp.color1); const N=26;
+  for(let i=0;i<N;i++){ const tp=i/N, a=tp*6.283*3.2, coil=0.7*(1-tp), sr=0.34*(1-tp*0.85)+0.03;
+    const b=new THREE.Mesh(new THREE.SphereGeometry(sr,14,12),mat);
+    b.position.set(Math.cos(a)*coil, tp*0.9-0.3, Math.sin(a)*coil); g.add(b);
+  }
+  g.rotation.z=0.5; g.userData.len=1.7; g.userData.kind='conch';
+  return g;
+}
+// 依 shape 派發建模（魚 → makeFishMesh；其餘 → 特製）
+function makeCreature(sp){
+  if(sp.shape==='jelly')  return makeJelly(sp);
+  if(sp.shape==='turtle') return makeTurtle(sp);
+  if(sp.shape==='conch')  return makeConch(sp);
+  return makeFishMesh(sp);
 }
 
 /* =========================================================================
@@ -730,11 +799,11 @@ shoreBank.position.set(0, 0.75, 27); // 頂面高度為 1.5，前緣在 Z = 2
 shoreBank.receiveShadow = true; shoreBank.castShadow = true;
 scene.add(shoreBank);
 
-// 2. 左側山崖突出部 (河道彎曲效果)
-const leftCliff = new THREE.Mesh(new THREE.BoxGeometry(30, 1.5, 40), cliffMats);
-leftCliff.position.set(-15, 0.75, -15);
-leftCliff.receiveShadow = true; leftCliff.castShadow = true;
-scene.add(leftCliff);
+// 2. 左側山崖突出部——移除：原本擋在角色正前方，改為開闊水道
+// const leftCliff = new THREE.Mesh(new THREE.BoxGeometry(30, 1.5, 40), cliffMats);
+// leftCliff.position.set(-15, 0.75, -15);
+// leftCliff.receiveShadow = true; leftCliff.castShadow = true;
+// scene.add(leftCliff);
 
 // 3. 右側山崖突出部 (河道彎曲效果)
 const rightCliff = new THREE.Mesh(new THREE.BoxGeometry(35, 1.5, 30), cliffMats);
@@ -747,6 +816,21 @@ const waterGeo=new THREE.PlaneGeometry(200,58,80,40);
 const water=new THREE.Mesh(waterGeo,waterMat);
 water.rotation.x=-Math.PI/2; water.position.set(0,WATER_Y,-27);
 scene.add(water);
+
+// --- 雨（呼應 AC 參考圖的雨天氛圍）---
+const RAIN_N=420;
+const rainPos=new Float32Array(RAIN_N*6);
+for(let i=0;i<RAIN_N;i++){ const o=i*6, x=(Math.random()-0.5)*60, y=Math.random()*28, z=-10+(Math.random()-0.5)*60;
+  rainPos[o]=x; rainPos[o+1]=y; rainPos[o+2]=z; rainPos[o+3]=x; rainPos[o+4]=y-0.7; rainPos[o+5]=z; }
+const rainGeo=new THREE.BufferGeometry(); rainGeo.setAttribute('position',new THREE.BufferAttribute(rainPos,3));
+const rain=new THREE.LineSegments(rainGeo, new THREE.LineBasicMaterial({color:'#cdd8e0',transparent:true,opacity:0.32}));
+rain.frustumCulled=false; scene.add(rain);
+function updateRain(dt,cx,cz){
+  for(let i=0;i<RAIN_N;i++){ const o=i*6; rainPos[o+1]-=dt*24; rainPos[o+4]-=dt*24;
+    if(rainPos[o+1]<0){ const x=cx+(Math.random()-0.5)*52, z=cz+(Math.random()-0.5)*52, y=18+Math.random()*12;
+      rainPos[o]=x; rainPos[o+1]=y; rainPos[o+2]=z; rainPos[o+3]=x; rainPos[o+4]=y-0.7; rainPos[o+5]=z; } }
+  rainGeo.attributes.position.needsUpdate=true;
+}
 function waveHeight(x,z,t){ return Math.sin(x*0.6+t*1.1)*0.05+Math.sin(z*0.5-t*0.9)*0.04
   +Math.sin((x+z)*0.3+t*0.7)*0.028+Math.sin((x*0.9-z*0.7)+t*1.6)*0.014; }
 
@@ -809,8 +893,9 @@ function makeReed(x,y,z){
 // 散佈樹木（近岸兩側 + 對岸）、灌木、石頭、花、蘆葦、睡蓮
 // 高度對照函數 (動森山崖區塊高度)
 function getLandHeight(x, z) {
+  if (x >= -14 && x <= 14 && z >= -48 && z < 2) return 0;   // 角色正前方的開闊水道（最優先，挖成水）
   if (z >= 2) return 1.5;
-  if (x >= -30 && x <= 0 && z >= -35 && z <= 5) return 1.5;
+  // 原左側山崖已移除 → 該區改為開闊水道（不再 return 1.5）
   if (x >= 0 && x <= 35 && z >= -50 && z <= -20) return 1.5;
   if (z <= -56) return 1.5;
   return 0; // 河道水面下
@@ -818,12 +903,13 @@ function getLandHeight(x, z) {
 
 const farFromAngler=(x,z)=> Math.hypot(x-(-0.8), z-4)>2.2;
 
-// 在高地上散佈樹木 (包含紅蘋果)
-for(let i=0;i<38;i++){
-  const z = -140 + Math.random() * 155;
-  const x = -60 + Math.random() * 120;
+// 在高地上散佈樹木 (含紅蘋果)；清空角色前方/旁邊的視野，避免擋住鏡頭
+for(let i=0;i<46;i++){
+  const z = -140 + Math.random() * 200;          // -140..60（含角色後方的背景林）
+  const x = -70 + Math.random() * 140;
   const yh = getLandHeight(x, z);
-  if (yh > 0 && farFromAngler(x, z)) {
+  const blockFront = (x > -15 && x < 12 && z > -12 && z < 16);  // 鏡頭與角色之間清空
+  if (yh > 0 && !blockFront) {
     scene.add(makeTree(x, yh, z, 1+Math.random()*1.3));
   }
 }
@@ -976,7 +1062,7 @@ function makeAngler(){
 }
 const angler=makeAngler();
 const ANGLER_Y=1.5;
-angler.position.set(-1,ANGLER_Y,4); angler.rotation.y=Math.PI-0.35;  // 與模型同朝向
+angler.position.set(3,ANGLER_Y,4); angler.rotation.y=Math.PI-0.2;  // 站右岸、面向左前方水面
 scene.add(angler);
 
 // --- 釣竿（接到角色右手）---
@@ -1046,7 +1132,17 @@ const getRodTipPos = (outVec) => {
 };
 
 // --- 載入專業 CC0 可愛角色模型（RobotExpressive, by Tomás Laulhé），取代手拼角色 ---
-let mixer=null, robotActions=null, robotModel=null;
+let mixer=null, robotActions=null, robotModel=null, handBone=null, armU=null, armL=null;
+const _handPos=new THREE.Vector3(), _aim=new THREE.Vector3(), UP_Y=new THREE.Vector3(0,1,0);
+const armUAxis=new THREE.Vector3(0,1,0), armLAxis=new THREE.Vector3(0,1,0), towardWater=new THREE.Vector3(0,0,-1);
+const _wdU=new THREE.Vector3(), _wdL=new THREE.Vector3(), _pInv=new THREE.Matrix4(), _ldir=new THREE.Vector3();
+// 把骨骼的「長度軸」瞄準某個世界方向（axisLocal=該骨指向子節點的本地方向），不靠猜座標軸
+function aimBoneWorld(bone, axisLocal, worldDir){
+  bone.parent.updateWorldMatrix(true,false);
+  _pInv.copy(bone.parent.matrixWorld).invert();
+  _ldir.copy(worldDir).transformDirection(_pInv).normalize();
+  bone.quaternion.setFromUnitVectors(axisLocal, _ldir);
+}
 const CHARACTER_TARGET_HEIGHT=2.5;
 function prepareLoadedCharacter(model){
   model.traverse(o=>{
@@ -1109,31 +1205,24 @@ function fitCharacterToAngler(model){
     const fit=fitCharacterToAngler(model);
     scene.add(model); robotModel=model;
 
-    // Attach rod to LowerArmR (right forearm bone)
-    const lowerArm = model.getObjectByName('LowerArmR');
-    if (lowerArm) {
-      lowerArm.add(rod);
-      model.updateWorldMatrix(true, true);
-      const worldScale = new THREE.Vector3();
-      lowerArm.getWorldScale(worldScale);
-      if (worldScale.x > 0) {
-        rod.scale.set(1 / worldScale.x, 1 / worldScale.y, 1 / worldScale.z);
-      } else {
-        rod.scale.setScalar(1 / (fit.scale * 51.5));
-      }
-      rod.position.set(0, 0.0138, 0); // Offset to hand joint position
-    }
+    // GLTFLoader 會把骨名的「.」換成「_」（Hand.R→Hand_R），故用正規化比對（忽略 . _ 空白、不分大小寫）
+    const _norm=s=>s.replace(/[._\s]/g,'').toLowerCase();
+    const findBone=(...cands)=>{ let f=null; model.traverse(o=>{ if(f||!o.isBone) return;
+      const n=_norm(o.name); for(const c of cands){ if(n===_norm(c)){ f=o; break; } } }); return f; };
+    handBone = findBone('HandR','RightHand') || findBone('LowerArmR');
+    armU = findBone('UpperArmR'); armL = findBone('LowerArmR');
+    console.log('[bones found] hand=',handBone&&handBone.name,' armU=',armU&&armU.name,' armL=',armL&&armL.name);
+    if(armL && armL.position.lengthSq()>1e-9) armUAxis.copy(armL.position).normalize();
+    if(handBone && handBone.position && handBone.position.lengthSq()>1e-9) armLAxis.copy(handBone.position).normalize();
+    towardWater.set(CAST.x-model.position.x, 0, CAST.z-model.position.z);
+    if(towardWater.lengthSq()<1e-6) towardWater.set(0,0,-1); towardWater.normalize();
+    rod.scale.setScalar(1);
+    scene.add(rod);
 
     angler.children.forEach(c=>{ if(c!==rod) c.visible=false; });   // 藏手拼身體、保留釣竿
-    console.log('[model] size=',fit.size,'scale=',fit.scale,'footY=',fit.footY,'pos=',model.position);
     toast('角色模型已載入 ✓');
     mixer=new THREE.AnimationMixer(model);
-    // 從所有動畫片段中移除右臂骨骼軌道，讓我們能手動控制右手持竿姿態
-    for(const cl of gltf.animations){
-      cl.tracks = cl.tracks.filter(track =>
-        !track.name.includes('UpperArmR') && !track.name.includes('LowerArmR')
-      );
-    }
+    // 不再剝除手臂軌道：讓 idle 動畫自然帶動手臂，釣竿用世界座標跟手即可
     robotActions={}; for(const cl of gltf.animations) robotActions[cl.name]=mixer.clipAction(cl);
     (robotActions['Idle']||mixer.clipAction(gltf.animations[0])).play();
   }catch(e){ console.warn('角色模型載入失敗，沿用內建角色：',e); }
@@ -1155,7 +1244,8 @@ const bBot=new THREE.Mesh(new THREE.SphereGeometry(0.13,16,16,0,6.28,Math.PI/2,M
 const bAnt=new THREE.Mesh(new THREE.CylinderGeometry(0.009,0.009,0.32,6), toonMat('#e8553e'));
 addOutline(bTop); addOutline(bBot);
 bAnt.position.y=0.22; bobber.add(bTop); bobber.add(bBot); bobber.add(bAnt);
-const CAST=new THREE.Vector3(3,0,-12);
+bobber.scale.setScalar(1.6);   // 放大讓水面浮標清楚可見
+const CAST=new THREE.Vector3(1,0,-5);
 bobber.position.copy(CAST); bobber.visible=false; scene.add(bobber);
 
 // --- 釣線 ---
@@ -1229,7 +1319,7 @@ const pCam=new THREE.PerspectiveCamera(40,1,0.1,50); pCam.position.set(0,0.2,4.5
 let pFish=null, pActive=false;
 function setPreview(sp){
   if(pFish) pScene.remove(pFish);
-  pFish=makeFishMesh(sp);
+  pFish=makeCreature(sp);
   const len=pFish.userData.len;
   pFish.scale.setScalar(2.4/len);
   pScene.add(pFish); pActive=true;
@@ -1389,10 +1479,10 @@ function succeed(grade){
   pendingCatch={sp,c,value,grade};
   if(robotActions) playEmote(robotActions['Wave']?'Wave':'Jump');   // 角色慶祝
   // 魚甩出水面：建立魚、噴水花，飛向竿尖
-  leapFish=makeFishMesh(sp); leapFish.scale.setScalar(0.5);
+  leapFish=makeCreature(sp); leapFish.scale.setScalar(0.8);
   leapFish.position.copy(bobber.position); scene.add(leapFish);
   leapFrom.copy(bobber.position);
-  rod.updateWorldMatrix(true,false); leapTo.copy(rodTipLocal).applyMatrix4(rod.matrixWorld);
+  leapTo.set(2.0, 2.2, 1.2);   // 魚飛到角色前方、鏡頭看得到的位置
   leapStart=now;
   spawnSplash(bobber.position); spawnRipple(bobber.position); spawnRipple(bobber.position);
   bobber.visible=false; fishLine.visible=true;
@@ -1403,13 +1493,13 @@ function showResult(sp,c,value,grade){
   document.getElementById('gradeBig').textContent = grade==='perfect'?'完 美':'釣 獲';
   document.getElementById('gradeBig').style.color = grade==='perfect'?'#e0a93b':'#3c4043';
   document.getElementById('rName').textContent=sp.zh;
-  document.getElementById('rJa').textContent=sp.ja;
+  document.getElementById('rJa').textContent='';   // 中文語系：不顯示日文讀音
   const b=document.getElementById('rBadge'); b.textContent=R.label; b.style.background=R.color;
   document.getElementById('rLen').textContent=c.len+' cm';
   document.getElementById('rWt').textContent = c.wt>=1 ? c.wt+' kg' : Math.max(1,Math.round(c.wt*1000))+' g';
   document.getElementById('rRare').textContent=R.label;
   document.getElementById('rRare').style.color=R.color;
-  document.getElementById('rVal').textContent=value.toLocaleString()+' 円'+(grade==='perfect'?'  ✨×1.4':'');
+  document.getElementById('rVal').textContent=value.toLocaleString()+' 元'+(grade==='perfect'?'  ✨×1.4':'');
   document.getElementById('rDesc').textContent=sp.desc;
   setPreview(sp);
   document.getElementById('result').classList.add('show');
@@ -1477,10 +1567,10 @@ function openBook(){
     cell.className='fishcell'+(seen?'':' locked');
     cell.innerHTML=seen
       ? `<span class="dot" style="background:${R.color}"></span>
-         <div class="cn">${sp.zh}</div><div class="cj">${sp.ja}</div>
-         <div class="cv">${sp.baseValue.toLocaleString()} 円~</div>`
+         <div class="cn">${sp.zh}</div><div class="cj">${R.label}</div>
+         <div class="cv">${sp.baseValue.toLocaleString()} 元~</div>`
       : `<span class="dot" style="background:#cdd3d6"></span>
-         <div class="cn">？？？</div><div class="cj">未發現</div><div class="cv">— 円</div>`;
+         <div class="cn">？？？</div><div class="cj">未發現</div><div class="cv">— 元</div>`;
     if(seen) cell.onclick=()=>showDexDetail(sp);
     grid.appendChild(cell);
   }
@@ -1490,12 +1580,11 @@ function openBook(){
 function showDexDetail(sp){
   const R=RARITY[sp.rarity];
   document.getElementById('bookSide').innerHTML=`
-    <div style="font-size:20px;font-weight:800;letter-spacing:1px">${sp.zh}</div>
-    <div style="font-size:12px;color:#6b7177;margin:2px 0 8px">${sp.ja}</div>
+    <div style="font-size:20px;font-weight:800;letter-spacing:1px;margin-bottom:8px">${sp.zh}</div>
     <span class="badge" style="background:${R.color}">${R.label}</span>
     <div style="margin:14px 0 6px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <div class="stat"><div class="k">體長</div><div class="v">${sp.lenMin}~${sp.lenMax} cm</div></div>
-      <div class="stat"><div class="k">基準價值</div><div class="v gold">${sp.baseValue.toLocaleString()} 円</div></div>
+      <div class="stat"><div class="k">基準價值</div><div class="v gold">${sp.baseValue.toLocaleString()} 元</div></div>
     </div>
     <div class="desc" style="margin:10px 0 0">${sp.desc}</div>`;
 }
@@ -1543,6 +1632,7 @@ function animate(){
   }
   waterUniforms.uTime.value=t;
   camera.getWorldPosition(waterUniforms.uCam.value);
+  updateRain(dt, waterUniforms.uCam.value.x, waterUniforms.uCam.value.z);
 
   // 雲緩緩飄移
   for(const c of clouds){ c.position.x+=dt*c.userData.drift;
@@ -1557,24 +1647,13 @@ function animate(){
   if (!window.currentLookAt) window.currentLookAt = new THREE.Vector3(-1.0, 1.0, 0);
 
   if (state === S.CELEBRATE || state === S.RESULT) {
-    // 勝利拉近特寫：正面偏側角，能同時看到角色全身、舉起的釣竿、和懸掛的魚
-    window.targetCamPos.set(-4.5, 3.2, 0.5);
-    window.targetLookAt.set(-1.0, 2.0, 3.8);
+    // 勝利特寫：斜前方看角色正臉與懸在前方的魚
+    window.targetCamPos.set(-3.5, 3.2, -5.0);
+    window.targetLookAt.set(2.0, 2.0, 1.0);
   } else {
-    // 釣魚狀態：稍高的俯瞰視角，能同時看到角色與浮標
-    const targetZ = (state === S.BITE) ? 6.0 : 8.0;
-    window.targetCamPos.set(-2 + px, 5.5 - py, targetZ);
-    
-    if (bobber.visible) {
-      // 動態混合看向浮標 (60% 偏向浮標)
-      window.targetLookAt.set(
-        -1.0 + (bobber.position.x - (-1.0)) * 0.6 + px * 0.5,
-        1.0 + (bobber.position.y - 1.0) * 0.4 + py * 0.3,
-        4.0 + (bobber.position.z - 4.0) * 0.6
-      );
-    } else {
-      window.targetLookAt.set(-1.0 + px * 0.5, 1.0 + py * 0.3, 0);
-    }
+    // 釣魚（AC 構圖）：相機在左前方、略高，斜角橫看河面——角色在右、看得到正臉，浮標在水中央偏左
+    window.targetCamPos.set(-6 + px, 5.0 - py, -11);
+    window.targetLookAt.set(1.5 + px * 0.5, 1.2 + py * 0.3, -3.0);
   }
 
   // 幀率無關的 exponential decay lerp 係數
@@ -1603,23 +1682,26 @@ function animate(){
     rod.rotation.x=ROD_BASE_X+swing+twitch+Math.sin(t*1.4)*0.012;
     rod.rotation.z=ROD_BASE_Z+Math.sin(t*1.1)*0.01;
   } else {
-    // Model bone socket override for active fishing
-    // 注意：AnimationMixer 使用 quaternion 更新骨骼，
-    // 我們必須在設定 Euler rotation 後同步更新 quaternion，否則動畫會覆蓋我們的值
-    const ua = robotModel.getObjectByName('UpperArmR');
-    const la = robotModel.getObjectByName('LowerArmR');
-    if (state !== S.CATCH && state !== S.RESULT && state !== S.CELEBRATE) {
-      // 正常釣魚姿態：右臂微舉握住釣竿，竿尖朝前上方
-      if (ua) { ua.rotation.set(-0.95 + swing * 0.7 + twitch, -0.9, 0.25 + swing * 0.1); ua.quaternion.setFromEuler(ua.rotation); }
-      if (la) { la.rotation.set(0.4, 0.0, 0.0); la.quaternion.setFromEuler(la.rotation); }
-      if (rod) rod.rotation.set(1.5 + swing * 0.3, 0.0, 0.0);
-    } else if (state === S.CELEBRATE) {
-      // 慶祝特寫時高舉釣竿，讓魚垂懸在前方
-      if (ua) { ua.rotation.set(-1.2, -0.9, 0.25); ua.quaternion.setFromEuler(ua.rotation); }
-      if (la) { la.rotation.set(0.3, 0.0, 0.0); la.quaternion.setFromEuler(la.rotation); }
-      if (rod) rod.rotation.set(1.3, 0.0, 0.0);
-    } else {
-      if (rod) rod.rotation.set(1.5, 0.0, 0.0);
+    // ① 把手臂抬到身體前方（世界空間瞄準，不靠骨骼座標軸）：上臂朝前、前臂朝前上＋隨甩竿
+    if (armU && armL) {
+      const liftL = (state===S.CELEBRATE ? 0.6 : 0.3) - swing*0.7 + twitch*0.4;
+      _wdU.copy(towardWater).setY(-0.55).normalize();  // 上臂自然下垂略朝前
+      _wdL.copy(towardWater).setY(liftL).normalize();  // 前臂朝前、略上
+      aimBoneWorld(armU, armUAxis, _wdU);
+      aimBoneWorld(armL, armLAxis, _wdL);
+    }
+    robotModel.updateWorldMatrix(true, true);
+    // ② 釣竿：握把貼到手骨世界座標，竿尖朝水面＋上抬（世界空間，不會反向）
+    if (handBone) {
+      handBone.getWorldPosition(_handPos);
+      _aim.copy(CAST).sub(_handPos); _aim.y = 0;
+      if (_aim.lengthSq() < 1e-4) _aim.set(0, 0, -1);
+      _aim.normalize();
+      const lift = (state===S.CELEBRATE ? 1.0 : 0.6) - swing*1.0 + twitch*0.4;  // 竿尖斜上約30°
+      _aim.y += lift; _aim.normalize();
+      rod.quaternion.setFromUnitVectors(UP_Y, _aim);
+      // 握把沿竿向往前推離身體（推的方向隨甩竿變 → 根部也會跟著動，不再像插死的支點）
+      rod.position.copy(_handPos).addScaledVector(_aim, 0.35);
     }
   }
 
@@ -1702,17 +1784,12 @@ function animate(){
       // 慶祝時釣竿保持顯示
       if (rod) rod.visible = true;
 
-      // 將魚定位在竿尖下方垂懸處
+      // 魚固定懸在角色前方、鏡頭看得到的高度
       const tip = new THREE.Vector3();
       getRodTipPos(tip);
-      const fishPos = tip.clone();
-      fishPos.y -= 0.8;
-      fishPos.z += 0.15;
+      const fishPos = new THREE.Vector3(2.0, 2.2, 1.2);
       leapFish.position.copy(fishPos);
-      
-      // 更新釣線，使其拉直連接到懸掛的魚
-      const mid = tip.clone().lerp(fishPos, 0.5);
-      updateLineCurve(tip, fishPos, mid);
+      updateLineCurve(tip, fishPos, tip.clone().lerp(fishPos, 0.5));
 
       // 顯示獲得橫幅
       const vb = document.getElementById('victory-banner');
@@ -1743,9 +1820,9 @@ function animate(){
     camera.updateMatrixWorld();
     getRodTipPos(tip);
     
-    const fishPos = tip.clone();
-    fishPos.y -= 0.8 + Math.sin(t * 4) * 0.04; // 垂直上下微彈
-    fishPos.z += 0.15 + Math.cos(t * 3) * 0.03; // 前後微晃
+    const _bt = elapsed / 1000;
+    const _hop = Math.max(0, Math.sin(_bt * 6.5)) * Math.max(0, 1 - _bt / 3) * 0.6; // 跳幾下、遞減
+    const fishPos = new THREE.Vector3(2.0, 2.2 + _hop, 1.2 + Math.cos(t * 3) * 0.04); // 角色前方、看得到
     
     if (leapFish) {
       leapFish.position.copy(fishPos);
@@ -1796,8 +1873,12 @@ function animate(){
   renderMain();
 
   if(pActive && pFish){ pFish.rotation.y+=dt*0.6;
-    if(pFish.userData.tail) pFish.userData.tail.rotation.y=Math.sin(t*6)*0.5;
-    if(pFish.userData.pects) for(const p of pFish.userData.pects) p.rotation.x=-0.3+Math.sin(t*5)*0.25;
+    const u=pFish.userData;
+    if(u.tail) u.tail.rotation.y=Math.sin(t*6)*0.5;
+    if(u.pects) for(const p of u.pects) p.rotation.x=-0.3+Math.sin(t*5)*0.25;
+    if(u.kind==='jelly' && u.bell){ u.bell.scale.y=0.85*(1+Math.sin(t*2.5)*0.12);
+      if(u.tentacles) for(let i=0;i<u.tentacles.length;i++) u.tentacles[i].rotation.x=Math.sin(t*2+i)*0.18; }
+    if(u.kind==='turtle' && u.flippers) for(let i=0;i<u.flippers.length;i++) u.flippers[i].rotation.z=Math.sin(t*2+i*1.4)*0.4;
     pRenderer.render(pScene,pCam); }
 }
 
