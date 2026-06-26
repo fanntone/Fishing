@@ -72,18 +72,19 @@
   .fishcell .thumb{ width:100%; height:84px; border-radius:10px; background:#eaf2f5 center/contain no-repeat;
     display:flex; align-items:center; justify-content:center; font-size:30px; color:#c2cdd2; margin-bottom:6px; }
   .fishcell.locked .thumb{ filter:grayscale(1) brightness(.6); }
-  .card{ position:relative; width:min(540px,92vw); max-height:92vh; overflow-y:auto; background:var(--paper);
+  .card{ position:relative; width:min(540px,94vw); transform-origin:center center; background:var(--paper);
     border-radius:24px; box-shadow:0 24px 70px rgba(20,40,55,.35); border:1px solid rgba(255,255,255,.7);
-    animation:rise .35s cubic-bezier(.2,.9,.3,1.2); }
-  @keyframes rise{ from{ transform:translateY(24px) scale(.96); opacity:0;} to{ transform:none; opacity:1;} }
+    animation:rise .3s ease; }
+  /* 進場只淡入：縮放交給 JS 的 fitResultCard（整張卡自適應縮小至螢幕內，免捲動） */
+  @keyframes rise{ from{ opacity:0;} to{ opacity:1;} }
   .card .head{ padding:18px 24px 12px; text-align:center; position:relative; }
   .card .grade{ font-size:13px; letter-spacing:4px; color:var(--ink-soft); }
   .card .gradeBig{ font-size:26px; font-weight:800; letter-spacing:6px; margin-top:2px; }
   .card .body{ display:flex; gap:18px; padding:6px 24px 20px; align-items:stretch; }
-  #previewWrap{ width:188px; flex:0 0 188px; border-radius:18px;
+  #previewWrap{ width:clamp(120px,30vw,188px); flex:0 0 clamp(120px,30vw,188px); border-radius:18px;
     background:radial-gradient(120% 120% at 50% 30%,#eaf6f9,#d6ebef);
     border:1px solid var(--line); display:flex; align-items:center; justify-content:center; }
-  #previewCanvas{ width:188px; height:188px; }
+  #previewCanvas{ width:100%; height:auto; aspect-ratio:1/1; display:block; }
   .info{ flex:1; min-width:0; }
   .info .name{ font-size:24px; font-weight:800; letter-spacing:1px; }
   .info .ja{ font-size:13px; color:var(--ink-soft); margin-top:2px; letter-spacing:1px; }
@@ -98,6 +99,11 @@
     border:1px solid var(--line); border-radius:14px; font-size:13.5px; line-height:1.85;
     color:#4a5358; letter-spacing:.5px; }
   .card .foot{ padding:6px 24px 22px; display:flex; gap:12px; }
+  #result{ cursor:pointer; overflow:hidden; }
+  .tapcont{ flex:1; text-align:center; padding:14px; border-radius:14px;
+    background:linear-gradient(180deg,#6fc0d6,#4d98b0); color:#fff;
+    font-size:15px; font-weight:700; letter-spacing:2px;
+    box-shadow:0 8px 20px rgba(77,152,176,.4); animation:throb .9s ease-in-out infinite alternate; }
   .btn{ flex:1; border:none; cursor:pointer; padding:14px; border-radius:14px; font-size:15px;
     font-weight:700; letter-spacing:2px; transition:transform .1s, box-shadow .2s;
     font-family:inherit; }
@@ -259,10 +265,7 @@
         </div>
       </div>
       <div class="desc" id="rDesc">—</div>
-      <div class="foot">
-        <button class="btn ghost" id="btnRelease">放生</button>
-        <button class="btn primary" id="btnKeep">收藏並繼續</button>
-      </div>
+      <div class="foot"><div class="tapcont">輕點任意處 ‧ 開始下一竿 →</div></div>
     </div>
   </div>
 
@@ -1629,6 +1632,17 @@ function showResult(sp,c,value,grade){
   document.getElementById('rDesc').textContent=sp.desc;
   setPreview(sp);
   document.getElementById('result').classList.add('show');
+  resultShownAt=performance.now();   // 防止彈出當下的同一下點擊立刻關閉
+  fitResultCard();                    // 自適應：整張卡縮放到螢幕內，小手機免捲動
+}
+
+// 量卡片自然尺寸，若超出視窗就整張等比例縮小（寬高都顧到，留一點邊距）
+function fitResultCard(){
+  const card=document.querySelector('#result .card');
+  if(!card) return;
+  card.style.transform='none';
+  const s=Math.min(1, innerHeight*0.96/card.offsetHeight, innerWidth*0.98/card.offsetWidth);
+  card.style.transform = s<0.999 ? 'scale('+s.toFixed(3)+')' : 'none';
 }
 
 function closeResult(keep){
@@ -1659,7 +1673,8 @@ function onAction(){
 }
 addEventListener('keydown',e=>{
   if(e.code==='Space'){ e.preventDefault();
-    if(document.getElementById('result').classList.contains('show')) return;
+    if(document.getElementById('result').classList.contains('show')){
+      if(performance.now()-resultShownAt>=250) closeResult(true); return; }   // 結果卡：空白鍵也能繼續
     if(state===S.LOCK){ startGame(); return; }   // 鎖定時直接開始
     onAction(); }
   if(e.code==='Escape') document.getElementById('book').classList.remove('show');
@@ -1678,8 +1693,12 @@ addEventListener('pointermove',e=>{
   tPitch=-(e.clientY/innerHeight-0.5)*0.6;
 });
 
-document.getElementById('btnRelease').onclick=()=>closeResult(false);
-document.getElementById('btnKeep').onclick=()=>closeResult(true);
+// 漁獲卡：點任意處即收藏並開始下一竿（小手機免捲動找按鈕）
+let resultShownAt=0;
+document.getElementById('result').addEventListener('pointerdown',e=>{
+  if(performance.now()-resultShownAt<250) return;   // 忽略彈出瞬間的點擊
+  closeResult(true);
+});
 
 /* =========================================================================
    7. 圖鑑
@@ -1769,8 +1788,13 @@ document.getElementById('btnPerf').onclick=()=>{ setLow(!lowMode);
    9. 主迴圈
    ========================================================================= */
 const tip=new THREE.Vector3();
+let _lastFrame=0;
+const FRAME_MIN=1000/60-1;   // 鎖 60fps：高刷新率手機（110/120Hz）會跑滿造成過熱，這裡每張只在達到 1/60 秒才繪製
 function animate(){
   requestAnimationFrame(animate);
+  const _tsNow=performance.now();
+  if(_tsNow-_lastFrame<FRAME_MIN) return;   // 尚未到下一張的時間：跳過，省 GPU、降溫
+  _lastFrame=_tsNow;
   const dt=clock.getDelta(); now=performance.now();
   const t=clock.elapsedTime;
   if(mixer) mixer.update(dt);
@@ -2059,6 +2083,7 @@ addEventListener('resize',()=>{
   applyResponsiveCamera();
   renderer.setSize(innerWidth,innerHeight);
   if(composer) composer.setSize(innerWidth,innerHeight);
+  if(document.getElementById('result').classList.contains('show')) fitResultCard();
 });
 
 /* =========================================================================
