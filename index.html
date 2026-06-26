@@ -1352,7 +1352,7 @@ const bAnt=new THREE.Mesh(new THREE.CylinderGeometry(0.009,0.009,0.32,6), toonMa
 addOutline(bTop); addOutline(bBot);
 bAnt.position.y=0.22; bobber.add(bTop); bobber.add(bBot); bobber.add(bAnt);
 bobber.scale.setScalar(1.6);   // 放大讓水面浮標清楚可見
-const CAST=new THREE.Vector3(1,0,-5);
+const CAST=new THREE.Vector3(-0.95,0,-5);   // 落點 x 取在相機中央垂直面上→浮標水平置中（與螢幕比例無關）
 bobber.position.copy(CAST); bobber.visible=false; scene.add(bobber);
 
 // --- 釣線 ---
