@@ -57,7 +57,22 @@
   #result{ inset:0; display:none; align-items:center; justify-content:center;
     background:rgba(30,50,60,.28); backdrop-filter:blur(3px); z-index:30; }
   #result.show{ display:flex; }
-  .card{ width:min(540px,92vw); max-height:92vh; overflow-y:auto; background:var(--paper);
+  #newBadge{ display:none; position:absolute; top:-14px; right:-10px; z-index:5;
+    background:linear-gradient(135deg,#ff5e7a,#ff3b5c); color:#fff; padding:8px 16px;
+    border-radius:14px; font-weight:900; letter-spacing:2px; font-size:18px;
+    box-shadow:0 8px 22px rgba(255,59,92,.5); transform:rotate(8deg);
+    animation:newpop .5s cubic-bezier(.2,.9,.3,1.5); }
+  #newBadge small{ display:block; font-size:11px; letter-spacing:1px; font-weight:700; opacity:.9; }
+  @keyframes newpop{ from{ transform:rotate(8deg) scale(0);} to{ transform:rotate(8deg) scale(1);} }
+  /* 圖鑑：依品質分類 + 以圖為主 */
+  .dexsec{ grid-column:1/-1; display:flex; align-items:center; gap:10px; margin:6px 2px 2px; }
+  .dexsec .bar{ flex:1; height:1px; background:var(--line); }
+  .dexsec .lab{ font-size:13px; font-weight:800; letter-spacing:2px; padding:3px 12px; border-radius:999px; color:#fff; }
+  .dexsec .cnt{ font-size:12px; color:var(--ink-soft); }
+  .fishcell .thumb{ width:100%; height:84px; border-radius:10px; background:#eaf2f5 center/contain no-repeat;
+    display:flex; align-items:center; justify-content:center; font-size:30px; color:#c2cdd2; margin-bottom:6px; }
+  .fishcell.locked .thumb{ filter:grayscale(1) brightness(.6); }
+  .card{ position:relative; width:min(540px,92vw); max-height:92vh; overflow-y:auto; background:var(--paper);
     border-radius:24px; box-shadow:0 24px 70px rgba(20,40,55,.35); border:1px solid rgba(255,255,255,.7);
     animation:rise .35s cubic-bezier(.2,.9,.3,1.2); }
   @keyframes rise{ from{ transform:translateY(24px) scale(.96); opacity:0;} to{ transform:none; opacity:1;} }
@@ -224,6 +239,7 @@
 
   <div id="result" class="hud">
     <div class="card">
+      <div id="newBadge">✨ NEW ✨<small>圖鑑 +1</small></div>
       <div class="head">
         <div class="grade">釣 獲</div>
         <div class="gradeBig" id="gradeBig">成功</div>
@@ -343,7 +359,7 @@ const RARITY = [
 const SHAPES = {
   normal: { len:2.0, depth:0.42, width:0.30, tail:'forked',  tailSize:0.6,  dorsal:0.5,  anal:0.32, pect:0.32 },
   slim:   { len:2.3, depth:0.30, width:0.22, tail:'forked',  tailSize:0.55, dorsal:0.4,  anal:0.28, pect:0.30 },
-  eel:    { len:3.6, depth:0.18, width:0.17, tail:'pointed', tailSize:0.2,  dorsal:0.9,  anal:0.5,  pect:0.16, ribbon:true },
+  eel:    { len:3.1, depth:0.34, width:0.28, tail:'pointed', tailSize:0.42, dorsal:0.7,  anal:0.4,  pect:0.2,  ribbon:true },
   flat:   { len:1.8, depth:0.50, width:0.14, tail:'round',   tailSize:0.34, dorsal:0.9,  anal:0.7,  pect:0.3,  flat:true },
   round:  { len:1.45,depth:0.60, width:0.56, tail:'fan',     tailSize:0.3,  dorsal:0.34, anal:0.3,  pect:0.4 },
   deep:   { len:1.8, depth:0.62, width:0.38, tail:'forked',  tailSize:0.5,  dorsal:0.7,  anal:0.5,  pect:0.34 },
@@ -477,7 +493,7 @@ function fishPattern(sp){
 
 // 體側剪影控制點（x:0尾→1頭, 半徑比例）— 大頭圓潤，較可愛
 const SIL_CUTE =[[0,0.03],[0.06,0.18],[0.16,0.54],[0.32,0.86],[0.5,1.0],[0.7,0.92],[0.86,0.66],[1.0,0.34]];
-const SIL_EEL  =[[0,0.07],[0.08,0.5],[0.3,0.74],[0.55,0.82],[0.8,0.74],[0.93,0.58],[1.0,0.42]];
+const SIL_EEL  =[[0,0.05],[0.12,0.42],[0.35,0.78],[0.62,1.0],[0.82,0.95],[0.94,0.78],[1.0,0.5]];  // 頭寬尾細，不再像棍子
 const SIL_ROUND=[[0,0.10],[0.1,0.55],[0.28,0.92],[0.48,1.0],[0.68,0.96],[0.86,0.66],[1.0,0.46]];
 function silAt(arr,t){ for(let i=1;i<arr.length;i++){ if(t<=arr[i][0]){
   const a=arr[i-1],b=arr[i],k=(t-a[0])/((b[0]-a[0])||1); return a[1]+(b[1]-a[1])*k; } } return arr[arr.length-1][1]; }
@@ -575,15 +591,22 @@ function makeFishMesh(sp){
     hl.position.set(eX+eR*0.7, eY+eR*0.32, zs*(eZ+eR*0.55)); g.add(hl);
   }
 
-  // 鬚（鯰、鯉、鰻、鱔…）
+  // 鬚（鯰、鯉、鰻、鱔…）：彎曲下垂、柔軟會飄
   if(fishHasWhiskers(sp.baseZh)){
-    const wMat=toonMat(cBody.clone().multiplyScalar(0.65));
+    const wMat=toonMat(cBody.clone().multiplyScalar(0.6));
+    const whiskers=[];
     for(const zs of [1,-1]) for(let k=0;k<2;k++){
-      const wl=L*(0.22+k*0.06);
-      const w=new THREE.Mesh(new THREE.CylinderGeometry(0.005,0.013,wl,5),wMat);
-      w.position.set(L*0.5+wl*0.32, -D*0.16-k*D*0.1, zs*W*0.55);
-      w.rotation.z=-Math.PI/2-0.4; w.rotation.y=zs*(0.35+k*0.25); g.add(w);
+      const pivot=new THREE.Group();
+      pivot.position.set(L*0.48, -D*0.08 - k*D*0.07, zs*W*0.42);
+      const wl=L*(0.42+k*0.16);
+      const s0=new THREE.Vector3(0,0,0);
+      const s1=new THREE.Vector3(wl*0.45, -wl*0.14, zs*wl*0.08);
+      const s2=new THREE.Vector3(wl*0.7,  -wl*0.55, zs*wl*0.16);   // 往前下垂
+      const w=new THREE.Mesh(new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(s0,s1,s2),10,0.012,5,false), wMat);
+      pivot.add(w); g.add(pivot);
+      whiskers.push({pivot, ph:Math.random()*6.28});
     }
+    g.userData.whiskers=whiskers;
   }
 
   // 河豚刺
@@ -903,13 +926,14 @@ function getLandHeight(x, z) {
 
 const farFromAngler=(x,z)=> Math.hypot(x-(-0.8), z-4)>2.2;
 
-// 收集樹的位置（清空角色周圍的視野），稍後用 CC0 模型擺放
+// 露營空地：中央保留空地（帳篷/營火/烤架），樹環繞在外圍且沿岸左右鋪滿成密林
+const CLEAR={x:3, z:13, r:9.5};
 const TREE_POS=[];
-for(let i=0;i<50;i++){
-  const z = -140 + Math.random() * 210;
-  const x = -70 + Math.random() * 150;
-  const yh = getLandHeight(x, z);
-  if (yh > 0 && Math.hypot(x-3, z-4) > 8) TREE_POS.push({x, y:yh, z});
+for(let i=0;i<260;i++){
+  const x = 3 + (Math.random()-0.5)*110;            // x 約 -52..58
+  const z = 7 + Math.random()*56;                   // z 7..63（只在角色後方）
+  const yh = getLandHeight(x,z);
+  if(yh>0 && Math.hypot(x-CLEAR.x, z-CLEAR.z) > CLEAR.r) TREE_POS.push({x, y:yh, z});  // 空地內不長樹
 }
 // 載入 CC0 低多邊形樹（Quaternius, public domain；本機 models/ 同源，無 CORS 問題）
 (async()=>{
@@ -928,10 +952,12 @@ for(let i=0;i<50;i++){
     for(const p of TREE_POS){
       const proto=protos[(Math.random()*protos.length)|0];
       const tree=proto.clone(true);
-      const s=proto.userData.baseScale*(0.75+Math.random()*0.5);
+      const s=proto.userData.baseScale*(0.7+Math.random()*0.55);
       tree.scale.setScalar(s);
       tree.position.set(p.x, p.y - proto.userData.minY*s, p.z);
       tree.rotation.y=Math.random()*6.28;
+      const near = Math.hypot(p.x-3, p.z-4) < 16;   // 只有近處的樹投影，遠處關閉以顧效能
+      tree.traverse(o=>{ if(o.isMesh){ o.castShadow=near; o.receiveShadow=true; } });
       scene.add(tree);
     }
     console.log('[trees] 載入 CC0 樹模型 ×', TREE_POS.length);
@@ -939,6 +965,58 @@ for(let i=0;i<50;i++){
     for(const p of TREE_POS) scene.add(makeTree(p.x, p.y, p.z, 1+Math.random()*1.3));
   }
 })();
+
+// --- 露營：帳篷、營火（會閃爍）、竹架烤魚 ---
+const campfires=[];
+function makeTent(x,z){
+  const g=new THREE.Group();
+  const dome=new THREE.Mesh(new THREE.SphereGeometry(1.5,22,12,0,6.283,0,Math.PI*0.55), toonMat('#e8743c'));
+  dome.scale.set(1,1,1.6); g.add(dome);
+  const door=new THREE.Mesh(new THREE.CircleGeometry(0.8,18,0,Math.PI), toonMat('#5a2f1e'));
+  door.rotation.y=Math.PI; door.position.set(0,0.0,-2.35); door.scale.set(1,1.25,1); g.add(door);
+  g.position.set(x, getLandHeight(x,z), z);
+  g.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } });
+  return g;
+}
+function makeCampfire(x,z){
+  const g=new THREE.Group();
+  for(let i=0;i<7;i++){ const a=i/7*6.283; const s=new THREE.Mesh(new THREE.IcosahedronGeometry(0.16,0),toonMat('#9aa0a6'));
+    s.position.set(Math.cos(a)*0.6,0.08,Math.sin(a)*0.6); s.rotation.set(Math.random()*3,Math.random()*3,Math.random()*3); g.add(s); }
+  for(let i=0;i<4;i++){ const a=i/4*Math.PI; const w=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.06,0.85,6),toonMat('#6b4a2e'));
+    w.position.y=0.16; w.rotation.set(Math.PI/2-0.3, a, 0); g.add(w); }
+  const flames=[];
+  for(let i=0;i<3;i++){ const f=new THREE.Mesh(new THREE.ConeGeometry(0.22-i*0.05,0.75-i*0.14,8),
+      new THREE.MeshStandardMaterial({color:i===0?'#ff7a2e':'#ffd24a',emissive:i===0?'#ff5a1e':'#ffb02e',emissiveIntensity:1.4,transparent:true,opacity:0.9}));
+    f.position.set((Math.random()-0.5)*0.12,0.42+i*0.1,(Math.random()-0.5)*0.12); g.add(f); flames.push(f); }
+  const light=new THREE.PointLight('#ff8a3a',2.4,9); light.position.y=0.7; g.add(light);
+  g.position.set(x, getLandHeight(x,z), z);
+  g.userData.flames=flames; g.userData.light=light; campfires.push(g);
+  return g;
+}
+function makeGrilledFish(){
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.SphereGeometry(0.16,12,10),toonMat('#a9763f')); body.scale.set(2.3,1,0.7); g.add(body);
+  const tail=new THREE.Mesh(new THREE.ConeGeometry(0.12,0.16,4),toonMat('#8a5a2e')); tail.rotation.z=-Math.PI/2; tail.position.x=-0.38; g.add(tail);
+  const sk=new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.95,5),toonMat('#d8c27a')); sk.rotation.z=Math.PI/2; g.add(sk);
+  return g;
+}
+function makeGrill(x,z){
+  const g=new THREE.Group(); const bamboo=toonMat('#cdb56a');
+  for(const sx of [-0.55,0.55]){
+    const a=new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.035,1.1,6),bamboo); a.position.set(sx,0.45,0.18); a.rotation.x=0.32; g.add(a);
+    const b=new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.035,1.1,6),bamboo); b.position.set(sx,0.45,-0.18); b.rotation.x=-0.32; g.add(b);
+  }
+  const bar=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,1.5,6),bamboo); bar.rotation.z=Math.PI/2; bar.position.y=0.82; g.add(bar);
+  for(let i=-2;i<=2;i++){ const r=new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.018,1.3,5),bamboo); r.rotation.z=Math.PI/2; r.position.set(0,0.8,i*0.11); g.add(r); }
+  for(const fz of [-0.18,0.16]){ const f=makeGrilledFish(); f.position.set(0,0.86,fz); f.rotation.y=Math.random()*0.4; g.add(f); }
+  g.position.set(x, getLandHeight(x,z), z);
+  g.traverse(o=>{ if(o.isMesh) o.castShadow=true; });
+  return g;
+}
+scene.add(makeTent(8.5, 13.5));
+scene.add(makeCampfire(1.5, 10.5));
+scene.add(makeGrill(-0.3, 11.5));
+
 // 在高地上散佈灌木
 for(let i=0;i<22;i++){
   const x = -55 + Math.random() * 110;
@@ -1351,6 +1429,24 @@ function setPreview(sp){
   pScene.add(pFish); pActive=true;
 }
 
+// --- 圖鑑縮圖：離屏渲染每種魚的圖、快取 ---
+const thumbCache={};
+const thR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});
+thR.setSize(150,150); thR.setPixelRatio(1);
+thR.outputColorSpace=THREE.SRGBColorSpace; thR.toneMapping=THREE.ACESFilmicToneMapping; thR.toneMappingExposure=1.05;
+const thScene=new THREE.Scene();
+if(RoomEnvironment){ const tp=new THREE.PMREMGenerator(thR); thScene.environment=tp.fromScene(new RoomEnvironment(),0.04).texture; }
+thScene.add(new THREE.HemisphereLight('#eaf4ff','#5a6b4a',0.9));
+const thDir=new THREE.DirectionalLight('#fff4e0',2.0); thDir.position.set(2,3,4); thScene.add(thDir);
+const thCam=new THREE.PerspectiveCamera(40,1,0.1,50); thCam.position.set(0,0.2,4.6);
+function getFishThumb(sp){
+  if(thumbCache[sp.id]) return thumbCache[sp.id];
+  const m=makeCreature(sp); const len=m.userData.len||2; m.scale.setScalar(2.4/len); m.rotation.y=0.7;
+  thScene.add(m); thR.render(thScene,thCam);
+  const url=thR.domElement.toDataURL('image/png');
+  thScene.remove(m); thumbCache[sp.id]=url; return url;
+}
+
 // --- 後製：微光暈 + 色彩分級/暗角/顆粒 ---
 let composer=null, gradePass=null;
 if(POST){
@@ -1406,6 +1502,7 @@ let curSweep=1400, curZone=[30,82], curPerfect=[46,64];
 // 進度
 let coins=0, catchCount=0;
 const discovered=new Set();
+const records={};                 // 每種魚的最佳捕獲紀錄 sid→{len,wt,value,grade}
 let pendingCatch=null;
 
 function load(){
@@ -1413,11 +1510,12 @@ function load(){
     const d=JSON.parse(localStorage.getItem('fishing_save')||'{}');
     coins=d.coins||0; catchCount=d.catchCount||0;
     (d.discovered||[]).forEach(i=>discovered.add(i));
+    Object.assign(records, d.records||{});
   }catch(e){}
 }
 function save(){
   localStorage.setItem('fishing_save',JSON.stringify(
-    {coins,catchCount,discovered:[...discovered]}));
+    {coins,catchCount,discovered:[...discovered],records}));
 }
 function updateHUD(){
   document.getElementById('coins').textContent=coins.toLocaleString();
@@ -1491,7 +1589,8 @@ function strike(){
 function fail(msg){
   state=S.RESULT;
   bobber.visible=false; fishLine.visible=false; fishShadow.visible=false;
-  sfx('fail'); toast(msg);
+  const lost=Math.min(100, coins); coins-=lost; save(); updateHUD();   // 失手扣 100，扣到 0 為止
+  sfx('fail'); toast(msg + (lost>0 ? `　-${lost} 元` : ''));
   setTimeout(()=>{ if(state===S.RESULT){ state=S.READY;
     setHint('點擊或按 <b>空白鍵</b> 重新拋竿'); } },300);
 }
@@ -1516,6 +1615,7 @@ function succeed(grade){
 
 function showResult(sp,c,value,grade){
   const R=RARITY[sp.rarity];
+  document.getElementById('newBadge').style.display = discovered.has(sp.id) ? 'none' : 'block';  // 首次釣到顯示 New
   document.getElementById('gradeBig').textContent = grade==='perfect'?'完 美':'釣 獲';
   document.getElementById('gradeBig').style.color = grade==='perfect'?'#e0a93b':'#3c4043';
   document.getElementById('rName').textContent=sp.zh;
@@ -1525,7 +1625,7 @@ function showResult(sp,c,value,grade){
   document.getElementById('rWt').textContent = c.wt>=1 ? c.wt+' kg' : Math.max(1,Math.round(c.wt*1000))+' g';
   document.getElementById('rRare').textContent=R.label;
   document.getElementById('rRare').style.color=R.color;
-  document.getElementById('rVal').textContent=value.toLocaleString()+' 元'+(grade==='perfect'?'  ✨×1.4':'');
+  document.getElementById('rVal').textContent=value.toLocaleString()+' 元'+(grade==='perfect'?'（完美×1.4）':'');
   document.getElementById('rDesc').textContent=sp.desc;
   setPreview(sp);
   document.getElementById('result').classList.add('show');
@@ -1535,8 +1635,12 @@ function closeResult(keep){
   document.getElementById('result').classList.remove('show');
   pActive=false;
   if(keep && pendingCatch){
-    coins+=pendingCatch.value; catchCount++;
-    discovered.add(pendingCatch.sp.id); save(); updateHUD();
+    const r=pendingCatch;
+    coins+=r.value; catchCount++;
+    discovered.add(r.sp.id);
+    const ex=records[r.sp.id];
+    if(!ex || r.value>ex.value) records[r.sp.id]={len:r.c.len, wt:r.c.wt, value:r.value, grade:r.grade};
+    save(); updateHUD();
   }
   pendingCatch=null;
   state=S.READY;
@@ -1586,33 +1690,55 @@ document.getElementById('btnBookClose').onclick=()=>bookEl.classList.remove('sho
 function openBook(){
   const grid=document.getElementById('bookGrid'); grid.innerHTML='';
   document.getElementById('bookSub').textContent=`已收集 ${discovered.size} / ${DEX_TOTAL} 種`;
-  for(const sp of SPECIES){
-    const seen=discovered.has(sp.id);
-    const R=RARITY[sp.rarity];
-    const cell=document.createElement('div');
-    cell.className='fishcell'+(seen?'':' locked');
-    cell.innerHTML=seen
-      ? `<span class="dot" style="background:${R.color}"></span>
-         <div class="cn">${sp.zh}</div><div class="cj">${R.label}</div>
-         <div class="cv">${sp.baseValue.toLocaleString()} 元~</div>`
-      : `<span class="dot" style="background:#cdd3d6"></span>
-         <div class="cn">？？？</div><div class="cj">未發現</div><div class="cv">— 元</div>`;
-    if(seen) cell.onclick=()=>showDexDetail(sp);
-    grid.appendChild(cell);
+  const pending=[];
+  for(let r=0;r<RARITY.length;r++){                       // 依品質分類
+    const R=RARITY[r];
+    const inR=SPECIES.filter(s=>s.rarity===r);
+    const got=inR.filter(s=>discovered.has(s.id)).length;
+    const sec=document.createElement('div'); sec.className='dexsec';
+    sec.innerHTML=`<span class="lab" style="background:${R.color}">${R.label}</span>`+
+      `<span class="cnt">${got} / ${inR.length}</span><span class="bar"></span>`;
+    grid.appendChild(sec);
+    for(const sp of inR){
+      const seen=discovered.has(sp.id);
+      const cell=document.createElement('div'); cell.className='fishcell'+(seen?'':' locked');
+      if(seen){
+        cell.innerHTML=`<div class="thumb"></div><div class="cn">${sp.zh}</div>`+
+          `<div class="cv">${(records[sp.id]?records[sp.id].value:sp.baseValue).toLocaleString()} 元</div>`;
+        cell.onclick=()=>showDexDetail(sp);
+        pending.push({el:cell.querySelector('.thumb'), sp});
+      } else {
+        cell.innerHTML=`<div class="thumb">？</div><div class="cn">？？？</div><div class="cv">未發現</div>`;
+      }
+      grid.appendChild(cell);
+    }
   }
-  document.getElementById('bookSide').innerHTML='<div class="ph">點選左側魚種<br/>查看詳細資料</div>';
+  document.getElementById('bookSide').innerHTML='<div class="ph">點選魚種<br/>查看捕獲卡資料</div>';
   bookEl.classList.add('show');
+  // 非同步分批補上縮圖，避免一次卡頓
+  let idx=0;
+  (function fill(){
+    const t0=performance.now();
+    while(idx<pending.length && performance.now()-t0<12){
+      const p=pending[idx++]; p.el.style.backgroundImage=`url(${getFishThumb(p.sp)})`; p.el.textContent='';
+    }
+    if(idx<pending.length) requestAnimationFrame(fill);
+  })();
 }
 function showDexDetail(sp){
-  const R=RARITY[sp.rarity];
+  const R=RARITY[sp.rarity]; const rec=records[sp.id];
+  const wtTxt = rec ? (rec.wt>=1? rec.wt+' kg' : Math.max(1,Math.round(rec.wt*1000))+' g') : '';
   document.getElementById('bookSide').innerHTML=`
-    <div style="font-size:20px;font-weight:800;letter-spacing:1px;margin-bottom:8px">${sp.zh}</div>
-    <span class="badge" style="background:${R.color}">${R.label}</span>
-    <div style="margin:14px 0 6px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <div class="stat"><div class="k">體長</div><div class="v">${sp.lenMin}~${sp.lenMax} cm</div></div>
-      <div class="stat"><div class="k">基準價值</div><div class="v gold">${sp.baseValue.toLocaleString()} 元</div></div>
+    <div style="text-align:center"><img src="${getFishThumb(sp)}" style="width:150px;height:150px;border-radius:14px;background:#eaf2f5"/></div>
+    <div style="font-size:21px;font-weight:800;letter-spacing:1px;text-align:center;margin-top:4px">${sp.zh}</div>
+    <div style="text-align:center;margin:6px 0"><span class="badge" style="background:${R.color}">${R.label}</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+      <div class="stat"><div class="k">${rec?'最佳體長':'體長範圍'}</div><div class="v">${rec? rec.len+' cm' : sp.lenMin+'~'+sp.lenMax+' cm'}</div></div>
+      <div class="stat"><div class="k">${rec?'最佳價值':'基準價值'}</div><div class="v gold">${(rec?rec.value:sp.baseValue).toLocaleString()} 元</div></div>
+      ${rec?`<div class="stat"><div class="k">最佳重量</div><div class="v">${wtTxt}</div></div>
+      <div class="stat"><div class="k">評價</div><div class="v" style="color:${rec.grade==='perfect'?'#e0a93b':'#3c4043'}">${rec.grade==='perfect'?'完美':'良好'}</div></div>`:''}
     </div>
-    <div class="desc" style="margin:10px 0 0">${sp.desc}</div>`;
+    <div class="desc" style="margin:12px 0 0">${sp.desc}</div>`;
 }
 
 /* =========================================================================
@@ -1664,6 +1790,12 @@ function animate(){
   for(const c of clouds){ c.position.x+=dt*c.userData.drift;
     if(c.position.x>140) c.position.x=-140; }
 
+  // 營火閃爍
+  for(const cf of campfires){ const fl=cf.userData.flames;
+    for(let i=0;i<fl.length;i++){ fl[i].scale.set(1, 1+Math.sin(t*12+i*2.1)*0.2, 1); fl[i].rotation.y=t*3+i; }
+    cf.userData.light.intensity=2.0+Math.sin(t*16)*0.6;
+  }
+
   // 環顧（平滑）：滑鼠控制相機位移與看點方向
   const px=tYaw*3.0, py=tPitch*3.0;
 
@@ -1677,9 +1809,9 @@ function animate(){
     window.targetCamPos.set(-3.5, 3.2, -5.0);
     window.targetLookAt.set(2.0, 2.0, 1.0);
   } else {
-    // 釣魚（AC 構圖）：相機在左前方、略高，斜角橫看河面——角色在右、看得到正臉，浮標在水中央偏左
-    window.targetCamPos.set(-6 + px, 5.0 - py, -11);
-    window.targetLookAt.set(1.5 + px * 0.5, 1.2 + py * 0.3, -3.0);
+    // 釣魚（AC 構圖）：左前方略高斜看——角色在前緣、後方是露營空地與環樹
+    window.targetCamPos.set(-5 + px, 4.4 - py, -9.5);
+    window.targetLookAt.set(2.2 + px * 0.5, 1.2 + py * 0.3, -1.5);
   }
 
   // 幀率無關的 exponential decay lerp 係數
@@ -1905,11 +2037,20 @@ function animate(){
     if(u.kind==='jelly' && u.bell){ u.bell.scale.y=0.85*(1+Math.sin(t*2.5)*0.12);
       if(u.tentacles) for(let i=0;i<u.tentacles.length;i++) u.tentacles[i].rotation.x=Math.sin(t*2+i)*0.18; }
     if(u.kind==='turtle' && u.flippers) for(let i=0;i<u.flippers.length;i++) u.flippers[i].rotation.z=Math.sin(t*2+i*1.4)*0.4;
+    if(u.whiskers) for(const wk of u.whiskers){ wk.pivot.rotation.z=Math.sin(t*2.2+wk.ph)*0.2; wk.pivot.rotation.x=Math.cos(t*1.7+wk.ph)*0.12; }
     pRenderer.render(pScene,pCam); }
 }
 
+// 固定「水平視角」的 RWD：不論螢幕寬窄，水平涵蓋一致（寬螢幕裁上下、不多露空水）
+function applyResponsiveCamera(){
+  const aspect=innerWidth/innerHeight;
+  const HFOV=THREE.MathUtils.degToRad(74);
+  camera.fov=THREE.MathUtils.radToDeg(2*Math.atan(Math.tan(HFOV/2)/aspect));
+  camera.aspect=aspect; camera.updateProjectionMatrix();
+}
+applyResponsiveCamera();
 addEventListener('resize',()=>{
-  camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+  applyResponsiveCamera();
   renderer.setSize(innerWidth,innerHeight);
   if(composer) composer.setSize(innerWidth,innerHeight);
 });
