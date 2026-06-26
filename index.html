@@ -2041,11 +2041,17 @@ function animate(){
     pRenderer.render(pScene,pCam); }
 }
 
-// 固定「水平視角」的 RWD：不論螢幕寬窄，水平涵蓋一致（寬螢幕裁上下、不多露空水）
+// RWD：以「手機直式」的近距離構圖為基準，PC（寬螢幕）自然配合。
+// 作法：由固定水平視角推垂直視角；但直式手機會使垂直視角暴增→畫面被拉太遠，
+//       故夾住垂直視角上限，讓手機維持和 PC 相近的近景。
+// 夾住點與 PC 公式在交界處連續（約 16:10 以上才走原公式），不會有跳動。
+const MOBILE_VFOV_MAX = 48;   // 直式上限：數字越小，手機看起來越「近」
 function applyResponsiveCamera(){
   const aspect=innerWidth/innerHeight;
   const HFOV=THREE.MathUtils.degToRad(74);
-  camera.fov=THREE.MathUtils.radToDeg(2*Math.atan(Math.tan(HFOV/2)/aspect));
+  let vfov=THREE.MathUtils.radToDeg(2*Math.atan(Math.tan(HFOV/2)/aspect));
+  vfov=Math.min(vfov, MOBILE_VFOV_MAX);     // 手機/直式不要拉太遠
+  camera.fov=vfov;
   camera.aspect=aspect; camera.updateProjectionMatrix();
 }
 applyResponsiveCamera();
