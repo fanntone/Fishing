@@ -1225,6 +1225,19 @@ function createBendingRod() {
 }
 
 const rod = createBendingRod();
+// 竿身方向「逐偵取自手骨的真實朝向」：實測整段 Cast 動畫，兩手骨的 local +Y 在雙手握竿段完全重合＝握竿軸；
+// 手腕滾轉也是繞著 +Y 轉（竿軸不受影響）。所以竿身＝持竿手骨 +Y 的世界方向＋固定上仰角
+// （Mixamo 動畫是以近水平的長竿做的，短竿抬高 ~33° 視覺才對）。換任何同骨架動畫都自動正確。
+// 持竿的手會換：甩竿階段雙手一起揮（錨在右手），浮標拋出後改「左手持竿、右手捲線」（錨平滑移到左手）。
+const _rodDir=new THREE.Vector3(0,0.55,-0.84);
+const _Rpos=new THREE.Vector3(), _Lpos=new THREE.Vector3(), _anchor=new THREE.Vector3();
+const _quatR=new THREE.Quaternion(), _quatL=new THREE.Quaternion(), _gripAxis=new THREE.Vector3(), _gripAxisL=new THREE.Vector3(), _tmpV=new THREE.Vector3();
+const ROD_PITCH_UP=0.58;       // 竿身相對手軸的固定上仰角（rad ≈33°）
+const GRIP_R=0.5, GRIP_L=0.28; // 右手在捲線器端(0.5)；收線時左手握近竿尾(0.28)，竿尾不會往後戳穿身體
+let reelBlend=0;               // 0=竿在右手（idle/甩竿） 1=竿在左手（拋出後捲線）
+// 甩竿動畫：雙手後拉高舉蓄力(ct~1.3 竿子朝天) → 前甩(ct~2.2 竿子掃過前方) → 竿尖指向水面。
+// 浮標要在竿子往前甩到位(ct≈2.2)才拋出，太早會在竿子還朝天時就飛走。
+const CAST_RELEASE_T=2.2, CAST_TIMESCALE=1.3;
 const ROD_BASE_X=1.05, ROD_BASE_Z=0.1;
 rod.position.set(0.5,1.2,-0.6); rod.rotation.set(ROD_BASE_X,0,ROD_BASE_Z);
 angler.add(rod);
@@ -1238,19 +1251,12 @@ const getRodTipPos = (outVec) => {
   }
 };
 
-// --- 載入專業 CC0 可愛角色模型（RobotExpressive, by Tomás Laulhé），取代手拼角色 ---
-let mixer=null, robotActions=null, robotModel=null, handBone=null, armU=null, armL=null;
-const _handPos=new THREE.Vector3(), _aim=new THREE.Vector3(), UP_Y=new THREE.Vector3(0,1,0);
-const armUAxis=new THREE.Vector3(0,1,0), armLAxis=new THREE.Vector3(0,1,0), towardWater=new THREE.Vector3(0,0,-1);
-const _wdU=new THREE.Vector3(), _wdL=new THREE.Vector3(), _pInv=new THREE.Matrix4(), _ldir=new THREE.Vector3();
-// 把骨骼的「長度軸」瞄準某個世界方向（axisLocal=該骨指向子節點的本地方向），不靠猜座標軸
-function aimBoneWorld(bone, axisLocal, worldDir){
-  bone.parent.updateWorldMatrix(true,false);
-  _pInv.copy(bone.parent.matrixWorld).invert();
-  _ldir.copy(worldDir).transformDirection(_pInv).normalize();
-  bone.quaternion.setFromUnitVectors(axisLocal, _ldir);
-}
-const CHARACTER_TARGET_HEIGHT=2.5;
+// --- 載入使用者自製角色模型（character_animated.glb：Mixamo 綁骨＋Idle/Cast 動畫），取代手拼角色 ---
+let charModel=null, handBone=null, handBoneL=null, footBoneL=null, footBoneR=null, charMixer=null, charActions=null, charBaseY=0, charBaseRotY=0;
+const UP_Y=new THREE.Vector3(0,1,0);
+const CHARACTER_TARGET_HEIGHT=1.8;
+// 鞋底比腳趾骨（Toe_End）還低約 0.17 世界單位；貼地時要多抬這段，鞋子才不會沉進草皮
+const SOLE_TO_BONE=0.17;
 function prepareLoadedCharacter(model){
   model.traverse(o=>{
     if(o.isMesh || o.isSkinnedMesh){
@@ -1260,6 +1266,12 @@ function prepareLoadedCharacter(model){
       if(o.geometry){
         if(!o.geometry.boundingBox) o.geometry.computeBoundingBox();
         if(!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
+      }
+      // 來源模型把 metallicFactor 匯出成 1（全金屬），在戶外光下會偏暗混濁；角色是布料/塑膠質感，改成非金屬
+      const mats=Array.isArray(o.material)?o.material:(o.material?[o.material]:[]);
+      for(const m of mats){
+        if(m.metalness!==undefined) m.metalness=0.05;
+        if(m.roughness!==undefined) m.roughness=0.85;
       }
     }
   });
@@ -1288,61 +1300,107 @@ function getSafeBounds(obj){
     && size.y>0.001;
   return {box,size,valid};
 }
+// 骨骼世界座標量高度：比 SkinnedMesh 的 geometry.boundingBox×matrixWorld 更可靠
+// （後者在合併過骨架的模型上，補償縮放的解算時機不穩定，量到的尺寸會忽大忽小）
+function getBoneBounds(model){
+  let maxY=-Infinity, minY=Infinity, found=false;
+  const p=new THREE.Vector3();
+  model.traverse(o=>{ if(o.isBone){ o.getWorldPosition(p);
+    if(p.y>maxY) maxY=p.y; if(p.y<minY) minY=p.y; found=true; } });
+  return (found && Number.isFinite(maxY) && Number.isFinite(minY) && maxY>minY)
+    ? {height:maxY-minY, minY} : null;
+}
 function fitCharacterToAngler(model){
-  const before=getSafeBounds(model);
-  const rawScale=before.valid ? CHARACTER_TARGET_HEIGHT/before.size.y : 1;
+  model.updateMatrixWorld(true);
+  const boneBounds=getBoneBounds(model);
+  const meshBounds=getSafeBounds(model);
+  const rawHeight = boneBounds ? boneBounds.height : (meshBounds.valid ? meshBounds.size.y : null);
+  const rawScale = (rawHeight && rawHeight>0.001) ? CHARACTER_TARGET_HEIGHT/rawHeight : 1;
   const scale=Number.isFinite(rawScale) && rawScale>=0.01 && rawScale<=20 ? rawScale : 1;
   model.scale.setScalar(scale);
+  model.updateMatrixWorld(true);
 
-  const after=getSafeBounds(model);
-  const footY=after.valid && Number.isFinite(after.box.min.y) ? after.box.min.y : 0;
+  const boneBounds2=getBoneBounds(model);
+  const meshBounds2=getSafeBounds(model);
+  const footY = boneBounds2 ? boneBounds2.minY : (meshBounds2.valid ? meshBounds2.box.min.y : 0);
   model.position.set(angler.position.x, angler.position.y-footY, angler.position.z);
-  model.rotation.y=Math.PI-0.35;                                 // 面向鏡頭
+  model.rotation.y=3.2;                                          // 面向鏡頭（實測：先前 0.5 其實是背對水面，3.2 才是正臉朝水）
   model.updateWorldMatrix(true,true);
 
-  return {size:before.size,scale,footY};
+  return {size:{y:rawHeight}, scale, footY};
 }
 (async()=>{
   try{
     const { GLTFLoader }=await import('three/addons/loaders/GLTFLoader.js');
-    const gltf=await new GLTFLoader().loadAsync('https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/models/gltf/RobotExpressive/RobotExpressive.glb');
+    const { FBXLoader }=await import('three/addons/loaders/FBXLoader.js');
+    const gltf=await new GLTFLoader().loadAsync('models/character_animated.glb');
     const model=gltf.scene;
-    // SkinnedMesh 移動後容易被視錐剔除誤判，載入模型一律關閉 mesh culling。
     prepareLoadedCharacter(model);
-    const fit=fitCharacterToAngler(model);
-    scene.add(model); robotModel=model;
+    // 這個模型（合併過骨架的 SkinnedMesh）量包圍盒前必須先加入 scene，
+    // 否則 mesh 節點上殘留的補償縮放（Blender FBX 匯入/匯出留下）會讓量到的尺寸整個錯掉
+    scene.add(model);
+    fitCharacterToAngler(model);
+    charModel=model;
+    charBaseY=model.position.y; charBaseRotY=model.rotation.y;
 
-    // GLTFLoader 會把骨名的「.」換成「_」（Hand.R→Hand_R），故用正規化比對（忽略 . _ 空白、不分大小寫）
-    const _norm=s=>s.replace(/[._\s]/g,'').toLowerCase();
+    const _norm=s=>s.replace(/[._\s:]/g,'').toLowerCase();
     const findBone=(...cands)=>{ let f=null; model.traverse(o=>{ if(f||!o.isBone) return;
       const n=_norm(o.name); for(const c of cands){ if(n===_norm(c)){ f=o; break; } } }); return f; };
-    handBone = findBone('HandR','RightHand') || findBone('LowerArmR');
-    armU = findBone('UpperArmR'); armL = findBone('LowerArmR');
-    console.log('[bones found] hand=',handBone&&handBone.name,' armU=',armU&&armU.name,' armL=',armL&&armL.name);
-    if(armL && armL.position.lengthSq()>1e-9) armUAxis.copy(armL.position).normalize();
-    if(handBone && handBone.position && handBone.position.lengthSq()>1e-9) armLAxis.copy(handBone.position).normalize();
-    towardWater.set(CAST.x-model.position.x, 0, CAST.z-model.position.z);
-    if(towardWater.lengthSq()<1e-6) towardWater.set(0,0,-1); towardWater.normalize();
+    handBone = findBone('mixamorigRightHand','RightHand','HandR');
+    handBoneL = findBone('mixamorigLeftHand','LeftHand','HandL');
+    footBoneL = findBone('mixamorigLeftToe_End','mixamorigLeftFoot','LeftFoot');
+    footBoneR = findBone('mixamorigRightToe_End','mixamorigRightFoot','RightFoot');
+
     rod.scale.setScalar(1);
     scene.add(rod);
 
     angler.children.forEach(c=>{ if(c!==rod) c.visible=false; });   // 藏手拼身體、保留釣竿
+
+    // GLB 內烘焙的動畫在合併流程中被壓壞了（雙手間距忽大忽小＝等於沒握住竿、蹲低腳浮起）。
+    // 改用原始 Mixamo FBX 動畫、只取「旋轉軌」直接綁回同一副骨架（骨名相同，免重定向）；
+    // 位移軌全部捨棄（角色固定在原地，垂直靠每幀動態貼地補償）。
+    const boneByKey={}; model.traverse(o=>{ if(o.isBone) boneByKey[_norm(o.name)]=o.name; });
+    // 各骨 rest 都與 FBX 相同，唯獨 GLB 的 Hips rest 多了 -90°X（GLTF Y-up 匯出把根骨轉正）。
+    // 只對 Hips 旋轉軌左乘這個 rest 修正量，整個身體才不會前折成一團。
+    const hipsBone=findBone('mixamorigHips','Hips');
+    const hipsRest=new THREE.Quaternion(); if(hipsBone) hipsRest.copy(hipsBone.quaternion);
+    const _qa=new THREE.Quaternion(), _qo=new THREE.Quaternion();
+    const retarget=(srcClip,name)=>{
+      const tracks=[];
+      for(const tr of srcClip.tracks){
+        const dot=tr.name.lastIndexOf('.'); if(dot<0) continue;
+        if(tr.name.slice(dot+1)!=='quaternion') continue;      // 只用旋轉（與 FBX 的公分尺度無關）
+        const key=_norm(tr.name.slice(0,dot));
+        const glbBone=boneByKey[key];
+        if(!glbBone) continue;
+        const nt=tr.clone(); nt.name=glbBone+'.quaternion';
+        if(key==='mixamorighips'){
+          const v=nt.values;
+          for(let i=0;i<v.length;i+=4){ _qa.set(v[i],v[i+1],v[i+2],v[i+3]); _qo.copy(hipsRest).multiply(_qa);
+            v[i]=_qo.x; v[i+1]=_qo.y; v[i+2]=_qo.z; v[i+3]=_qo.w; }
+        }
+        tracks.push(nt);
+      }
+      return new THREE.AnimationClip(name, srcClip.duration, tracks);
+    };
+    const fbx=new FBXLoader();
+    const [idleF,castF,danceF]=await Promise.all([
+      fbx.loadAsync('models/anim/idle.fbx'),
+      fbx.loadAsync('models/anim/cast.fbx'),
+      fbx.loadAsync('models/anim/dance.fbx'),
+    ]);
+
+    charMixer=new THREE.AnimationMixer(model);
+    charActions={
+      Idle: charMixer.clipAction(retarget(idleF.animations[0],'Idle')),
+      Cast: charMixer.clipAction(retarget(castF.animations[0],'Cast')),
+      Celebrate: charMixer.clipAction(retarget(danceF.animations[0],'Celebrate')),
+    };
+    charActions['Cast'].setLoop(THREE.LoopOnce); charActions['Cast'].clampWhenFinished=true;
+    charActions['Idle'].play();
     toast('角色模型已載入 ✓');
-    mixer=new THREE.AnimationMixer(model);
-    // 不再剝除手臂軌道：讓 idle 動畫自然帶動手臂，釣竿用世界座標跟手即可
-    robotActions={}; for(const cl of gltf.animations) robotActions[cl.name]=mixer.clipAction(cl);
-    (robotActions['Idle']||mixer.clipAction(gltf.animations[0])).play();
   }catch(e){ console.warn('角色模型載入失敗，沿用內建角色：',e); }
 })();
-// 釣到魚時的慶祝表情
-function playEmote(name){
-  if(!mixer||!robotActions||!robotActions[name]) return;
-  const idle=robotActions['Idle']; const act=robotActions[name];
-  act.reset(); act.setLoop(THREE.LoopOnce,1); act.clampWhenFinished=true;
-  act.fadeIn(0.15).play(); if(idle) idle.crossFadeTo(act,0.15,false);
-  mixer.addEventListener('finished',function back(){ mixer.removeEventListener('finished',back);
-    if(idle){ idle.reset().fadeIn(0.3).play(); act.crossFadeTo(idle,0.3,false); } });
-}
 
 // --- 浮標 ---
 const bobber=new THREE.Group();
@@ -1499,6 +1557,7 @@ const clock=new THREE.Clock();
 let now=0;
 
 let castStart=0, biteAt=0, biteStart=0, castFrom=new THREE.Vector3(), castT=-1;
+let bobberReleased=false, releaseStart=0;   // 甩竿到 whip 才拋浮標
 // 每次咬鉤隨機產生：總時長、綠區、黃心（越窄越快越難）
 let curSweep=1400, curZone=[30,82], curPerfect=[46,64];
 
@@ -1545,11 +1604,31 @@ function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg
 
 function cast(){
   state=S.CASTING; castStart=now; castT=0;          // 觸發甩竿動作
+  bobberReleased=false;
   fishShadow.visible=false;
+  bobber.visible=false; fishLine.visible=false;     // 到動畫 whip 釋放點才顯示、拋出
+  setHint('');
+  if(charActions && charActions['Cast'] && charActions['Idle']){
+    const idle=charActions['Idle'], castAct=charActions['Cast'];
+    castAct.reset(); castAct.timeScale=CAST_TIMESCALE; castAct.fadeIn(0.08).play();
+    idle.crossFadeTo(castAct,0.08,false);
+    charMixer.addEventListener('finished', function back(e){
+      if(e.action!==castAct) return;
+      charMixer.removeEventListener('finished',back);
+      idle.reset().fadeIn(0.25).play();
+      castAct.crossFadeTo(idle,0.25,false);
+    });
+  } else {
+    releaseBobber();     // 沒有角色動畫時退回立即拋出
+  }
+}
+// 甩竿到位（whip）才真正拋出浮標：記錄竿尖起點、顯示浮標與釣線
+function releaseBobber(){
+  if(bobberReleased) return;
+  bobberReleased=true; releaseStart=now;
   rod.updateWorldMatrix(true,false);
   castFrom.copy(rodTipLocal).applyMatrix4(rod.matrixWorld);
   bobber.visible=true; fishLine.visible=true;
-  setHint('');
   sfx('cast');
 }
 function startWait(){
@@ -1605,7 +1684,7 @@ function succeed(grade){
   const mul=grade==='perfect'?1.4:1.0;
   const value=Math.round(sp.baseValue*(0.55+0.9*c.sizeNorm)*mul);
   pendingCatch={sp,c,value,grade};
-  if(robotActions) playEmote(robotActions['Wave']?'Wave':'Jump');   // 角色慶祝
+  // 角色慶祝：無骨骼動畫，改用 CELEBRATE 狀態下的整體跳動（見主迴圈）
   // 魚甩出水面：建立魚、噴水花，飛向竿尖
   leapFish=makeCreature(sp); leapFish.scale.setScalar(0.8);
   leapFish.position.copy(bobber.position); scene.add(leapFish);
@@ -1797,9 +1876,7 @@ function animate(){
   _lastFrame=_tsNow;
   const dt=clock.getDelta(); now=performance.now();
   const t=clock.elapsedTime;
-  if(mixer) mixer.update(dt);
-
-
+  if(charMixer) charMixer.update(dt);
 
   // FPS / GPU 診斷
   _fr++; _ft+=dt;
@@ -1828,14 +1905,18 @@ function animate(){
   if (!window.targetLookAt) window.targetLookAt = new THREE.Vector3();
   if (!window.currentLookAt) window.currentLookAt = new THREE.Vector3(-1.0, 1.0, 0);
 
+  // 直式手機：鏡頭拉近＋看點置中（跟 FOV 無關，避免人物/浮標被推到窄螢幕邊緣裁掉）
+  const _aspect=innerWidth/innerHeight;
+  const narrowT=THREE.MathUtils.clamp((0.75-_aspect)/(0.75-0.46), 0, 1);
+
   if (state === S.CELEBRATE || state === S.RESULT) {
     // 勝利特寫：斜前方看角色正臉與懸在前方的魚
-    window.targetCamPos.set(-3.5, 3.2, -5.0);
-    window.targetLookAt.set(2.0, 2.0, 1.0);
+    window.targetCamPos.set(-3.5, 3.2, -5.0).lerp(new THREE.Vector3(-1.5, 3.0, -3.2), narrowT);
+    window.targetLookAt.set(2.0, 2.0, 1.0).lerp(new THREE.Vector3(2.4, 2.0, 1.2), narrowT);
   } else {
     // 釣魚（AC 構圖）：左前方略高斜看——角色在前緣、後方是露營空地與環樹
-    window.targetCamPos.set(-5 + px, 4.4 - py, -9.5);
-    window.targetLookAt.set(2.2 + px * 0.5, 1.2 + py * 0.3, -1.5);
+    window.targetCamPos.set(-5 + px, 4.4 - py, -9.5).lerp(new THREE.Vector3(0.3 + px, 4.4 - py, -5.0), narrowT);
+    window.targetLookAt.set(2.2 + px * 0.5, 1.2 + py * 0.3, -1.5).lerp(new THREE.Vector3(1.0 + px * 0.5, 0.7 + py * 0.3, -1.6), narrowT);
   }
 
   // 幀率無關的 exponential decay lerp 係數
@@ -1856,35 +1937,50 @@ function animate(){
   let twitch=0;
   if(state===S.BITE) twitch=Math.sin(now*0.025)*0.05;       // 咬鉤抽動
   
-  if (robotModel) {
-    robotModel.updateWorldMatrix(true, true);
+  if (charModel) {
+    // 骨骼動畫（Idle/Cast/Celebrate）都有自己完整的動作，不用再疊加額外的位移/轉身
+    charModel.position.y = charBaseY;
+    charModel.rotation.y = charBaseRotY;
+    charModel.updateWorldMatrix(true, true);
+
+    // 動態貼地：來源動畫的髖部軌道跟腿部彎曲對不太起來（蹲低時腳會浮起），
+    // 不管動畫內部怎麼跑，每幀量出目前最低的腳趾世界座標，整隻角色補償位移到剛好貼地
+    if (footBoneL && footBoneR) {
+      const yL = footBoneL.matrixWorld.elements[13];
+      const yR = footBoneR.matrixWorld.elements[13];
+      const lowestFootY = Math.min(yL, yR);
+      // 抬到「地面＋鞋底厚度」：讓實際鞋底踩在草皮上，而不是把腳趾骨埋進地面害鞋子沉下去
+      charModel.position.y += (angler.position.y + SOLE_TO_BONE - lowestFootY);
+      charModel.updateWorldMatrix(true, true);
+    }
   }
 
-  if (!robotModel) {
+  if (!charModel || !handBone) {
     rod.rotation.x=ROD_BASE_X+swing+twitch+Math.sin(t*1.4)*0.012;
     rod.rotation.z=ROD_BASE_Z+Math.sin(t*1.1)*0.01;
   } else {
-    // ① 把手臂抬到身體前方（世界空間瞄準，不靠骨骼座標軸）：上臂朝前、前臂朝前上＋隨甩竿
-    if (armU && armL) {
-      const liftL = (state===S.CELEBRATE ? 0.6 : 0.3) - swing*0.7 + twitch*0.4;
-      _wdU.copy(towardWater).setY(-0.55).normalize();  // 上臂自然下垂略朝前
-      _wdL.copy(towardWater).setY(liftL).normalize();  // 前臂朝前、略上
-      aimBoneWorld(armU, armUAxis, _wdU);
-      aimBoneWorld(armL, armLAxis, _wdL);
+    // 竿子握把貼在右手骨（會跟著動畫上下擺動），竿身方向用「瞄準」而非兩手連線，才穩定不亂甩：
+    // ① 換手：甩竿（含 idle/蓄力）竿錨在右手；浮標拋出後換左手持竿、右手空出來搖捲線器（動畫本身就是這樣做的）
+    handBone.matrixWorld.decompose(_Rpos, _quatR, _tmpV);
+    if (handBoneL) handBoneL.matrixWorld.decompose(_Lpos, _quatL, _tmpV); else { _Lpos.copy(_Rpos); _quatL.copy(_quatR); }
+    const holdLeft = (bobberReleased && (state===S.CASTING || state===S.WAITING || state===S.BITE || state===S.CATCH)) ? 1 : 0;
+    reelBlend += (holdLeft - reelBlend) * Math.min(1, 5*dt);      // 平滑換手，不跳位
+    _anchor.copy(_Rpos).lerp(_Lpos, reelBlend);
+    // ② 竿身方向＝持竿手骨 local +Y 的世界方向（實測即握竿軸；雙手段兩手 +Y 重合，換手無縫）
+    _gripAxis.set(0,1,0).applyQuaternion(_quatR);
+    _gripAxisL.set(0,1,0).applyQuaternion(_quatL);
+    _gripAxis.lerp(_gripAxisL, reelBlend).normalize();
+    // ③ 加固定上仰角：保留手軸的水平指向（前甩/後仰全跟動畫），俯仰加 ROD_PITCH_UP 後重組
+    _tmpV.set(_gripAxis.x, 0, _gripAxis.z);
+    if (_tmpV.lengthSq() > 0.0025){                               // 手軸近乎垂直時沿用上一幀的水平指向
+      _tmpV.normalize();
+      const pitch=Math.min(Math.asin(THREE.MathUtils.clamp(_gripAxis.y,-1,1)) + ROD_PITCH_UP, 1.45);
+      _tmpV.multiplyScalar(Math.cos(pitch)); _tmpV.y=Math.sin(pitch);
+      _rodDir.lerp(_tmpV, 1-Math.exp(-14*dt)).normalize();        // 幀率無關平滑
     }
-    robotModel.updateWorldMatrix(true, true);
-    // ② 釣竿：握把貼到手骨世界座標，竿尖朝水面＋上抬（世界空間，不會反向）
-    if (handBone) {
-      handBone.getWorldPosition(_handPos);
-      _aim.copy(CAST).sub(_handPos); _aim.y = 0;
-      if (_aim.lengthSq() < 1e-4) _aim.set(0, 0, -1);
-      _aim.normalize();
-      const lift = (state===S.CELEBRATE ? 1.0 : 0.6) - swing*1.0 + twitch*0.4;  // 竿尖斜上約30°
-      _aim.y += lift; _aim.normalize();
-      rod.quaternion.setFromUnitVectors(UP_Y, _aim);
-      // 握把沿竿向往前推離身體（推的方向隨甩竿變 → 根部也會跟著動，不再像插死的支點）
-      rod.position.copy(_handPos).addScaledVector(_aim, 0.35);
-    }
+    rod.quaternion.setFromUnitVectors(UP_Y, _rodDir);
+    const gripY=GRIP_R+(GRIP_L-GRIP_R)*reelBlend;
+    rod.position.copy(_anchor).addScaledVector(_rodDir, -gripY);  // 持竿手落在竿身對應高度
   }
 
   // 釣竿彎曲動畫
@@ -1915,11 +2011,17 @@ function animate(){
     if(m.userData.tail) m.userData.tail.rotation.y=Math.sin(t*6+m.userData.ph*3)*0.5;
   }
 
+  // 甩竿：等骨骼動畫甩到 whip 釋放點（Cast.time≥CAST_RELEASE_T）才拋出浮標
+  if(state===S.CASTING && !bobberReleased){
+    const ca=charActions&&charActions['Cast'];
+    if(!ca || ca.time>=CAST_RELEASE_T) releaseBobber();
+  }
+
   // 浮標
   if(bobber.visible){
     let bx=CAST.x,bz=CAST.z;
     if(state===S.CASTING){
-      const k=Math.min(1,(now-castStart)/650);
+      const k=Math.min(1,(now-releaseStart)/650);
       bx=castFrom.x+(CAST.x-castFrom.x)*k;
       bz=castFrom.z+(CAST.z-castFrom.z)*k;
       const arc=Math.sin(k*Math.PI)*2.2;
@@ -1963,8 +2065,15 @@ function animate(){
       state=S.CELEBRATE;
       window.celebrateStart = now;
 
-      // 慶祝時釣竿保持顯示
-      if (rod) rod.visible = true;
+      // 慶祝時改跳舞動畫，不顯示釣竿
+      if (rod) rod.visible = false;
+      if(charActions && charActions['Celebrate']){
+        const cel=charActions['Celebrate'];
+        // 淡出「所有」其他動作再淡入慶祝：避免 Cast（clampWhenFinished 會停在最後一幀、權重殘留）
+        // 或 Idle 的殘留權重和慶祝混合，害右手卡在甩竿的姿勢
+        for(const k in charActions){ if(charActions[k]!==cel) charActions[k].fadeOut(0.15); }
+        cel.reset(); cel.timeScale=1; cel.fadeIn(0.15).play();
+      }
 
       // 魚固定懸在角色前方、鏡頭看得到的高度
       const tip = new THREE.Vector3();
@@ -2023,6 +2132,12 @@ function animate(){
 
     // 慶祝持續 3 秒後自動彈出結果卡
     if (elapsed >= 3000 && pendingCatch) {
+      // 跳舞動畫（13.8 秒）比慶祝畫面（3 秒）長很多，這裡先淡回待機
+      if(charActions && charActions['Idle']){
+        const idle=charActions['Idle'];
+        for(const k in charActions){ if(charActions[k]!==idle) charActions[k].fadeOut(0.3); }
+        idle.reset(); idle.timeScale=1; idle.fadeIn(0.3).play();
+      }
       // 移除垂懸的魚與隱藏釣線
       if (leapFish) {
         scene.remove(leapFish);
@@ -2065,16 +2180,13 @@ function animate(){
     pRenderer.render(pScene,pCam); }
 }
 
-// RWD：以「手機直式」的近距離構圖為基準，PC（寬螢幕）自然配合。
-// 作法：由固定水平視角推垂直視角；但直式手機會使垂直視角暴增→畫面被拉太遠，
-//       故夾住垂直視角上限，讓手機維持和 PC 相近的近景。
-// 夾住點與 PC 公式在交界處連續（約 16:10 以上才走原公式），不會有跳動。
-const MOBILE_VFOV_MAX = 48;   // 直式上限：數字越小，手機看起來越「近」
+// RWD：固定「水平視角」，不論螢幕寬窄，水平涵蓋一致（避免夾垂直視角導致水平視角跟著被壓縮、
+// 畫面整個偏移、人物被推到螢幕邊緣裁掉——FOV 與長寬比是數學上綁死的，沒辦法只夾一邊）。
+// 直式手機「感覺太遠」改用鏡頭靠近（見 CAMERA_DOLLY），跟 FOV 無關，才不會破壞置中。
 function applyResponsiveCamera(){
   const aspect=innerWidth/innerHeight;
   const HFOV=THREE.MathUtils.degToRad(74);
-  let vfov=THREE.MathUtils.radToDeg(2*Math.atan(Math.tan(HFOV/2)/aspect));
-  vfov=Math.min(vfov, MOBILE_VFOV_MAX);     // 手機/直式不要拉太遠
+  const vfov=THREE.MathUtils.radToDeg(2*Math.atan(Math.tan(HFOV/2)/aspect));
   camera.fov=vfov;
   camera.aspect=aspect; camera.updateProjectionMatrix();
 }
