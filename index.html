@@ -1234,6 +1234,8 @@ const _Rpos=new THREE.Vector3(), _Lpos=new THREE.Vector3(), _anchor=new THREE.Ve
 const _quatR=new THREE.Quaternion(), _quatL=new THREE.Quaternion(), _gripAxis=new THREE.Vector3(), _gripAxisL=new THREE.Vector3(), _tmpV=new THREE.Vector3();
 const ROD_PITCH_UP=0.58;       // 竿身相對手軸的固定上仰角（rad ≈33°）
 const GRIP_R=0.5, GRIP_L=0.28; // 右手在捲線器端(0.5)；收線時左手握近竿尾(0.28)，竿尾不會往後戳穿身體
+const TWOHAND_MIX=0.4;         // 雙手階段竿錨放兩手之間（偏右手）：實測 idle 左手在右手側向約 16cm，
+                               // 錨在單手上另一手會懸空看起來像單手持竿；放中間兩手都貼著竿身
 let reelBlend=0;               // 0=竿在右手（idle/甩竿） 1=竿在左手（拋出後捲線）
 // 甩竿動畫：雙手後拉高舉蓄力(ct~1.3 竿子朝天) → 前甩(ct~2.2 竿子掃過前方) → 竿尖指向水面。
 // 浮標要在竿子往前甩到位(ct≈2.2)才拋出，太早會在竿子還朝天時就飛走。
@@ -1687,6 +1689,14 @@ function succeed(grade){
   // 角色慶祝：無骨骼動畫，改用 CELEBRATE 狀態下的整體跳動（見主迴圈）
   // 魚甩出水面：建立魚、噴水花，飛向竿尖
   leapFish=makeCreature(sp); leapFish.scale.setScalar(0.8);
+  // 展示尺寸上限：不同造型原始大小差很多（水母含長觸手特別大），
+  // 統一夾住最大邊長，避免慶祝特寫時被透視放成巨無霸
+  {
+    const box=new THREE.Box3().setFromObject(leapFish);
+    const dim=box.getSize(new THREE.Vector3());
+    const maxD=Math.max(dim.x,dim.y,dim.z);
+    if(maxD>1.0) leapFish.scale.multiplyScalar(1.0/maxD);
+  }
   leapFish.position.copy(bobber.position); scene.add(leapFish);
   leapFrom.copy(bobber.position);
   leapTo.set(2.0, 2.2, 1.2);   // 魚飛到角色前方、鏡頭看得到的位置
@@ -1905,18 +1915,20 @@ function animate(){
   if (!window.targetLookAt) window.targetLookAt = new THREE.Vector3();
   if (!window.currentLookAt) window.currentLookAt = new THREE.Vector3(-1.0, 1.0, 0);
 
-  // 直式手機：鏡頭拉近＋看點置中（跟 FOV 無關，避免人物/浮標被推到窄螢幕邊緣裁掉）
+  // 直式手機構圖（與 applyResponsiveCamera 的 vfov 收斂配套）：
+  // 鏡頭沿「人物→浮標」連線後方低角度看回岸上，人物與浮標天生落在畫面中軸——
+  // 人物置中偏上夠大、浮標在下 1/3。aspect≤0.56（一般手機直式）即完全到位，不再吃到混合構圖。
   const _aspect=innerWidth/innerHeight;
-  const narrowT=THREE.MathUtils.clamp((0.75-_aspect)/(0.75-0.46), 0, 1);
+  const narrowT=portraitBlend(_aspect);
 
   if (state === S.CELEBRATE || state === S.RESULT) {
     // 勝利特寫：斜前方看角色正臉與懸在前方的魚
-    window.targetCamPos.set(-3.5, 3.2, -5.0).lerp(new THREE.Vector3(-1.5, 3.0, -3.2), narrowT);
-    window.targetLookAt.set(2.0, 2.0, 1.0).lerp(new THREE.Vector3(2.4, 2.0, 1.2), narrowT);
+    window.targetCamPos.set(-3.5, 3.2, -5.0).lerp(new THREE.Vector3(-0.5, 3.4, -2.0), narrowT);
+    window.targetLookAt.set(2.0, 2.0, 1.0).lerp(new THREE.Vector3(2.0, 2.2, 2.0), narrowT);
   } else {
     // 釣魚（AC 構圖）：左前方略高斜看——角色在前緣、後方是露營空地與環樹
-    window.targetCamPos.set(-5 + px, 4.4 - py, -9.5).lerp(new THREE.Vector3(0.3 + px, 4.4 - py, -5.0), narrowT);
-    window.targetLookAt.set(2.2 + px * 0.5, 1.2 + py * 0.3, -1.5).lerp(new THREE.Vector3(1.0 + px * 0.5, 0.7 + py * 0.3, -1.6), narrowT);
+    window.targetCamPos.set(-5 + px, 4.4 - py, -9.5).lerp(new THREE.Vector3(-2.65 + px * 0.5, 2.75, -9.55), narrowT);
+    window.targetLookAt.set(2.2 + px * 0.5, 1.2 + py * 0.3, -1.5).lerp(new THREE.Vector3(0.43 + px * 0.25, 1.14, -1.85), narrowT);
   }
 
   // 幀率無關的 exponential decay lerp 係數
@@ -1960,12 +1972,12 @@ function animate(){
     rod.rotation.z=ROD_BASE_Z+Math.sin(t*1.1)*0.01;
   } else {
     // 竿子握把貼在右手骨（會跟著動畫上下擺動），竿身方向用「瞄準」而非兩手連線，才穩定不亂甩：
-    // ① 換手：甩竿（含 idle/蓄力）竿錨在右手；浮標拋出後換左手持竿、右手空出來搖捲線器（動畫本身就是這樣做的）
+    // ① 換手：甩竿（含 idle/蓄力）是雙手持竿，竿錨放兩手之間；浮標拋出後換左手持竿、右手空出來搖捲線器（動畫本身就是這樣做的）
     handBone.matrixWorld.decompose(_Rpos, _quatR, _tmpV);
     if (handBoneL) handBoneL.matrixWorld.decompose(_Lpos, _quatL, _tmpV); else { _Lpos.copy(_Rpos); _quatL.copy(_quatR); }
     const holdLeft = (bobberReleased && (state===S.CASTING || state===S.WAITING || state===S.BITE || state===S.CATCH)) ? 1 : 0;
     reelBlend += (holdLeft - reelBlend) * Math.min(1, 5*dt);      // 平滑換手，不跳位
-    _anchor.copy(_Rpos).lerp(_Lpos, reelBlend);
+    _anchor.copy(_Rpos).lerp(_Lpos, TWOHAND_MIX + (1-TWOHAND_MIX)*reelBlend);
     // ② 竿身方向＝持竿手骨 local +Y 的世界方向（實測即握竿軸；雙手段兩手 +Y 重合，換手無縫）
     _gripAxis.set(0,1,0).applyQuaternion(_quatR);
     _gripAxisL.set(0,1,0).applyQuaternion(_quatL);
@@ -2075,10 +2087,12 @@ function animate(){
         cel.reset(); cel.timeScale=1; cel.fadeIn(0.15).play();
       }
 
-      // 魚固定懸在角色前方、鏡頭看得到的高度
+      // 魚固定懸在角色前方、鏡頭看得到的高度。直式鏡頭離人物近，懸掛點得移到人物身旁
+      // （跟人物離鏡頭差不多遠），否則固定在前方的魚會因為離鏡頭太近被透視放成巨無霸
       const tip = new THREE.Vector3();
       getRodTipPos(tip);
-      const fishPos = new THREE.Vector3(2.0, 2.2, 1.2);
+      const fishPos = new THREE.Vector3(2.0, 2.2, 1.2)
+        .lerp(new THREE.Vector3(3.05, 2.0, 3.05), portraitBlend(innerWidth/innerHeight));
       leapFish.position.copy(fishPos);
       updateLineCurve(tip, fishPos, tip.clone().lerp(fishPos, 0.5));
 
@@ -2113,7 +2127,10 @@ function animate(){
     
     const _bt = elapsed / 1000;
     const _hop = Math.max(0, Math.sin(_bt * 6.5)) * Math.max(0, 1 - _bt / 3) * 0.6; // 跳幾下、遞減
-    const fishPos = new THREE.Vector3(2.0, 2.2 + _hop, 1.2 + Math.cos(t * 3) * 0.04); // 角色前方、看得到
+    // 懸掛點與慶祝轉場一致：直式時移到人物身旁，避免離直式鏡頭太近被透視放大
+    const fishPos = new THREE.Vector3(2.0, 2.2, 1.2)
+      .lerp(new THREE.Vector3(3.05, 2.0, 3.05), portraitBlend(innerWidth/innerHeight));
+    fishPos.y += _hop; fishPos.z += Math.cos(t * 3) * 0.04;
     
     if (leapFish) {
       leapFish.position.copy(fishPos);
@@ -2180,14 +2197,18 @@ function animate(){
     pRenderer.render(pScene,pCam); }
 }
 
-// RWD：固定「水平視角」，不論螢幕寬窄，水平涵蓋一致（避免夾垂直視角導致水平視角跟著被壓縮、
-// 畫面整個偏移、人物被推到螢幕邊緣裁掉——FOV 與長寬比是數學上綁死的，沒辦法只夾一邊）。
-// 直式手機「感覺太遠」改用鏡頭靠近（見 CAMERA_DOLLY），跟 FOV 無關，才不會破壞置中。
+// RWD：寬螢幕固定「水平視角」74°（水平涵蓋一致）；直式手機若沿用會推出 ~117° 的超廣角垂直視角，
+// 人物變成一小點。所以直式（aspect≤0.56 全到位）把 vfov 收斂到 44°，並搭配 animate 裡專屬的直式鏡位
+//（FOV 與構圖是一起用投影數學解出來驗證過的，不會像之前單夾 FOV 造成偏移裁切）。
+function portraitBlend(aspect){
+  return THREE.MathUtils.clamp((0.68-aspect)/(0.68-0.56), 0, 1);
+}
+const PORTRAIT_VFOV=44;
 function applyResponsiveCamera(){
   const aspect=innerWidth/innerHeight;
   const HFOV=THREE.MathUtils.degToRad(74);
   const vfov=THREE.MathUtils.radToDeg(2*Math.atan(Math.tan(HFOV/2)/aspect));
-  camera.fov=vfov;
+  camera.fov=vfov+(PORTRAIT_VFOV-vfov)*portraitBlend(aspect);
   camera.aspect=aspect; camera.updateProjectionMatrix();
 }
 applyResponsiveCamera();
